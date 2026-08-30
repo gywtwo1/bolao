@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { User, Round, UserBet, AppNotification, RankingEntry, Match } from '../types';
+import { User, Round, UserBet, AppNotification, RankingEntry, Match, Team } from '../types';
 import { INITIAL_USERS, INITIAL_ROUNDS, INITIAL_BETS, INITIAL_NOTIFICATIONS } from '../data/initialData';
+import { BRASILEIRAO_TEAMS } from '../data/teams';
 import { evaluateBet } from '../utils/scoring';
 import { fetchLiveSportsScores } from '../utils/sportsApi';
 import confetti from 'canvas-confetti';
@@ -8,6 +9,7 @@ import confetti from 'canvas-confetti';
 interface BolaoContextType {
   currentUser: User | null;
   users: User[];
+  teams: Team[];
   rounds: Round[];
   bets: UserBet[];
   notifications: AppNotification[];
@@ -18,10 +20,10 @@ interface BolaoContextType {
   pushToast: AppNotification | null;
   isAdmin: boolean;
   // User Actions
-  login: (email: string, pass?: string) => boolean;
+  login: (loginOrEmail: string, pass?: string) => { success: boolean; message?: string };
   register: (data: { name: string; email: string; favoriteTeam: string; pixKey?: string; phone?: string }) => void;
   logout: () => void;
-  switchUser: (userId: string) => void;
+  switchUser: (userId: string, adminPass?: string) => { success: boolean; message?: string };
   setSelectedRoundId: (id: number) => void;
   updatePrediction: (roundId: number, matchId: string, home: number | null, away: number | null) => void;
   getUserPredictionsForRound: (roundId: number) => Record<string, { home: number; away: number }>;
@@ -38,6 +40,10 @@ interface BolaoContextType {
   adminUpdateMatchScore: (roundId: number, matchId: string, home: number, away: number, status: 'scheduled' | 'live' | 'finished') => void;
   adminSyncSportsApiScores: (roundId: number) => Promise<void>;
   adminFinalizeRound: (roundId: number) => void;
+  adminAddTeam: (teamData: Omit<Team, 'id'>) => void;
+  adminDeleteTeam: (teamId: string) => void;
+  adminUpdateTeam: (teamId: string, updated: Partial<Team>) => void;
+  adminEditMatchTeams: (roundId: number, matchId: string, homeTeamName: string, awayTeamName: string, stadium?: string) => void;
   // Ranking
   getGlobalRanking: () => RankingEntry[];
   getRoundRanking: (roundId: number) => RankingEntry[];
@@ -47,6 +53,7 @@ const BolaoContext = createContext<BolaoContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
   USERS: 'bolao2026_users',
+  TEAMS: 'bolao2026_teams',
   ROUNDS: 'bolao2026_rounds',
   BETS: 'bolao2026_bets',
   NOTIFICATIONS: 'bolao2026_notifications',
@@ -59,6 +66,11 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USERS);
     return saved ? JSON.parse(saved) : INITIAL_USERS;
+  });
+
+  const [teams, setTeams] = useState<Team[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.TEAMS);
+    return saved ? JSON.parse(saved) : BRASILEIRAO_TEAMS;
   });
 
   const [rounds, setRounds] = useState<Round[]>(() => {
@@ -92,6 +104,10 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
   }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+  }, [teams]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ROUNDS, JSON.stringify(rounds));
@@ -141,13 +157,70 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const clearPushToast = () => setPushToast(null);
 
-  const login = (email: string): boolean => {
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (user) {
-      setCurrentUserId(user.id);
-      return true;
+  const login = (loginOrEmail: string, pass?: string): { success: boolean; message?: string } => {
+    const cleanInput = loginOrEmail.trim().toLowerCase();
+    const cleanPass = (pass || '').trim();
+
+    // Check for Admin access constraint ("só entra na conta ADM quem tem o login admin e senha 228891")
+    if (cleanInput === 'admin' || cleanInput === 'adm@bolao.com' || cleanInput === 'admin@bolao.com') {
+      if (cleanPass !== '228891') {
+        return {
+          success: false,
+          message: 'Senha de Administrador incorreta! Acesso restrito: Login "admin" e Senha "228891".'
+        };
+      }
+
+      let adminUser = users.find(u => u.role === 'admin' || u.email.toLowerCase() === 'admin');
+      if (!adminUser) {
+        adminUser = {
+          id: 'user-admin',
+          name: 'Administrador Oficial',
+          email: 'admin',
+          role: 'admin',
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+          favoriteTeam: 'Flamengo',
+          pixKey: 'pix@bolao2026.com.br',
+          createdAt: new Date().toISOString(),
+          totalPoints: 0,
+          totalExactHits: 0,
+          totalOutcomeHits: 0,
+          roundsParticipated: 0
+        };
+        setUsers(prev => [adminUser!, ...prev]);
+      }
+
+      setCurrentUserId(adminUser.id);
+      triggerPush({
+        title: '🛡️ Modo Administrador Autenticado',
+        message: 'Você entrou na conta ADM com sucesso. O Painel de Administração está liberado.',
+        type: 'system',
+        userId: adminUser.id
+      });
+      return { success: true };
     }
-    return false;
+
+    // Check regular users
+    const user = users.find(
+      u => u.email.toLowerCase() === cleanInput || u.name.toLowerCase() === cleanInput
+    );
+
+    if (user) {
+      if (user.role === 'admin') {
+        if (cleanPass !== '228891') {
+          return {
+            success: false,
+            message: 'Senha de Administrador incorreta! Acesso restrito: Login "admin" e Senha "228891".'
+          };
+        }
+      }
+      setCurrentUserId(user.id);
+      return { success: true };
+    }
+
+    return {
+      success: false,
+      message: 'Usuário ou e-mail não encontrado. Digite o login correto ou cadastre-se.'
+    };
   };
 
   const register = (data: { name: string; email: string; favoriteTeam: string; pixKey?: string; phone?: string }) => {
@@ -182,8 +255,18 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (firstUser) setCurrentUserId(firstUser.id);
   };
 
-  const switchUser = (userId: string) => {
+  const switchUser = (userId: string, adminPass?: string): { success: boolean; message?: string } => {
+    const targetUser = users.find(u => u.id === userId);
+    if (targetUser?.role === 'admin') {
+      if (adminPass !== '228891') {
+        return {
+          success: false,
+          message: 'Acesso restrito: Para entrar na conta ADM é necessário o login "admin" e senha "228891".'
+        };
+      }
+    }
     setCurrentUserId(userId);
+    return { success: true };
   };
 
   const getUserPredictionsForRound = (roundId: number): Record<string, { home: number; away: number }> => {
@@ -555,6 +638,68 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
     );
     recalculateRoundScores(roundId, true);
+  };
+
+  const adminAddTeam = (teamData: Omit<Team, 'id'>) => {
+    const newTeam: Team = {
+      ...teamData,
+      id: `team-${Date.now()}`
+    };
+    setTeams(prev => [...prev, newTeam]);
+    triggerPush({
+      title: '🛡️ Novo Clube Cadastrado!',
+      message: `O time "${teamData.name}" (${teamData.code}) foi adicionado com sucesso pelo Administrador.`,
+      type: 'system'
+    });
+  };
+
+  const adminDeleteTeam = (teamId: string) => {
+    const target = teams.find(t => t.id === teamId);
+    setTeams(prev => prev.filter(t => t.id !== teamId));
+    triggerPush({
+      title: '🛡️ Time Removido!',
+      message: `O time "${target?.name || 'Clube'}" foi excluído da lista de times.`,
+      type: 'system'
+    });
+  };
+
+  const adminUpdateTeam = (teamId: string, updated: Partial<Team>) => {
+    setTeams(prev => prev.map(t => (t.id === teamId ? { ...t, ...updated } : t)));
+  };
+
+  const adminEditMatchTeams = (
+    roundId: number,
+    matchId: string,
+    homeTeamName: string,
+    awayTeamName: string,
+    stadium?: string
+  ) => {
+    const home = teams.find(t => t.name === homeTeamName);
+    const away = teams.find(t => t.name === awayTeamName);
+
+    setRounds(prev =>
+      prev.map(r => {
+        if (r.id === roundId) {
+          const updatedMatches = r.matches.map(m => {
+            if (m.id === matchId) {
+              return {
+                ...m,
+                homeTeam: home ? home.name : homeTeamName,
+                homeTeamCode: home ? home.code : homeTeamName.slice(0, 3).toUpperCase(),
+                homeTeamLogo: home ? home.logo : m.homeTeamLogo,
+                awayTeam: away ? away.name : awayTeamName,
+                awayTeamCode: away ? away.code : awayTeamName.slice(0, 3).toUpperCase(),
+                awayTeamLogo: away ? away.logo : m.awayTeamLogo,
+                stadium: stadium || (home ? `${home.stadium} (${home.city.slice(0, 2).toUpperCase()})` : m.stadium)
+              };
+            }
+            return m;
+          });
+          return { ...r, matches: updatedMatches };
+        }
+        return r;
+      })
+    );
   };
 
   // Ranking calculation

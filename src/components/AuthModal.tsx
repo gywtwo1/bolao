@@ -30,11 +30,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-    const ok = login(loginEmail, loginPass);
-    if (ok) {
+    const res = login(loginEmail, loginPass);
+    if (res.success) {
       onClose();
     } else {
-      setLoginError('E-mail não encontrado. Experimente usar uma das contas de teste abaixo ou cadastre-se.');
+      setLoginError(res.message || 'Erro ao entrar. Verifique os dados informados.');
     }
   };
 
@@ -114,12 +114,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
-                  E-mail:
+                  Login ou E-mail:
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="carlos@email.com"
+                  placeholder="admin ou carlos@email.com"
                   value={loginEmail}
                   onChange={e => setLoginEmail(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2.5 rounded-xl focus:border-emerald-400 focus:outline-none"
@@ -133,11 +133,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <input
                   type="password"
                   required
-                  placeholder="••••••••"
+                  placeholder="Digite sua senha (ADM: 228891)"
                   value={loginPass}
                   onChange={e => setLoginPass(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2.5 rounded-xl focus:border-emerald-400 focus:outline-none"
                 />
+              </div>
+
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 text-[11px] text-amber-300">
+                <span className="font-bold">🔐 Acesso Restrito de Administrador:</span>
+                <p className="text-slate-300 mt-0.5">
+                  Apenas o usuário com login <strong className="text-amber-400">admin</strong> e senha <strong className="text-amber-400 font-mono">228891</strong> tem acesso às funções de ADM.
+                </p>
               </div>
 
               <button
@@ -150,7 +157,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               {/* Demo Accounts List for quick preview */}
               <div className="pt-3 border-t border-slate-800 space-y-2">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                  Contas de Demonstração Rápidas:
+                  Contas de Demonstração:
                 </span>
                 <div className="space-y-1">
                   {users.slice(0, 4).map(u => (
@@ -158,8 +165,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                       key={u.id}
                       type="button"
                       onClick={() => {
-                        switchUser(u.id);
-                        onClose();
+                        if (u.role === 'admin') {
+                          setLoginEmail('admin');
+                          setLoginPass('228891');
+                        } else {
+                          switchUser(u.id);
+                          onClose();
+                        }
                       }}
                       className="w-full flex items-center justify-between p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-left text-slate-200 transition-colors"
                     >
@@ -168,7 +180,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         <span className="font-semibold">{u.name}</span>
                       </div>
                       <span className="text-[10px] font-bold text-emerald-400">
-                        {u.role === 'admin' ? '🛡️ Entrar como ADM' : 'Entrar'}
+                        {u.role === 'admin' ? '🛡️ Preencher Login ADM (228891)' : 'Entrar Direto'}
                       </span>
                     </button>
                   ))}

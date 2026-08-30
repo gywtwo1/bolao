@@ -175,8 +175,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <button
                         key={u.id}
                         onClick={() => {
-                          switchUser(u.id);
-                          setShowUserMenu(false);
+                          if (u.role === 'admin') {
+                            setShowUserMenu(false);
+                            openAuth();
+                          } else {
+                            switchUser(u.id);
+                            setShowUserMenu(false);
+                          }
                         }}
                         className={`w-full flex items-center justify-between p-1.5 rounded-lg text-xs transition-colors ${
                           u.id === currentUser?.id
@@ -189,7 +194,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                           <span className="truncate">{u.name}</span>
                         </div>
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">
-                          {u.role === 'admin' ? 'ADM' : `${u.totalPoints} pts`}
+                          {u.role === 'admin' ? '🔒 ADM (Senha)' : `${u.totalPoints} pts`}
                         </span>
                       </button>
                     ))}
@@ -209,31 +214,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Cadastrar / Novo Login</span>
                   </button>
 
-                  {isAdmin ? (
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        setActiveTab('admin');
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-950/30 rounded-xl transition-colors"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-amber-400" />
-                      <span>Painel de Administração</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        const adminUser = users.find(u => u.role === 'admin');
-                        if (adminUser) switchUser(adminUser.id);
-                        setShowUserMenu(false);
-                        setActiveTab('admin');
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-950/30 rounded-xl transition-colors"
-                    >
-                      <ShieldCheck className="w-4 h-4 text-amber-400" />
-                      <span>Acessar Modo Administrador</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      setActiveTab('admin');
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-950/30 rounded-xl transition-colors"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                    <span>{isAdmin ? 'Painel de Administração' : 'Acessar Painel ADM (admin/228891)'}</span>
+                  </button>
 
                   <button
                     onClick={() => {

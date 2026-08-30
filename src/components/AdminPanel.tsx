@@ -27,6 +27,8 @@ export const AdminPanel: React.FC = () => {
     rounds,
     bets,
     selectedRoundId,
+    isAdmin,
+    login,
     adminApproveBet,
     adminRejectBet,
     adminCreateRound,
@@ -35,6 +37,11 @@ export const AdminPanel: React.FC = () => {
     adminSyncSportsApiScores,
     adminFinalizeRound
   } = useBolao();
+
+  // Admin Login State for Protected Gate
+  const [adminGateLogin, setAdminGateLogin] = useState('admin');
+  const [adminGatePass, setAdminGatePass] = useState('');
+  const [gateError, setGateError] = useState('');
 
   const [adminTab, setAdminTab] = useState<'comprovantes' | 'rodadas' | 'placares'>('comprovantes');
   const [rejectReason, setRejectReason] = useState<{ [betId: string]: string }>({});
@@ -47,6 +54,99 @@ export const AdminPanel: React.FC = () => {
   const [newRoundTitle, setNewRoundTitle] = useState<string>(`${rounds.length + 1}ª Rodada - Brasileirão 2026`);
   const [newRoundPrice, setNewRoundPrice] = useState<number>(10.00);
   const [newRoundDeadline, setNewRoundDeadline] = useState<string>('2026-04-26T16:00');
+
+  const handleGateLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setGateError('');
+    const res = login(adminGateLogin, adminGatePass);
+    if (!res.success) {
+      setGateError(res.message || 'Credenciais inválidas. Utilize login admin e senha 228891.');
+    }
+  };
+
+  // If user is not authenticated as Admin, show the restricted login gate
+  if (!isAdmin) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-8 pb-24">
+        <div className="bg-slate-900/95 border border-amber-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-amber-950/30 text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-950/50">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+
+          <span className="text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 inline-block mb-2">
+            Área Restrita do Administrador
+          </span>
+
+          <h2 className="text-xl font-black text-white">
+            Painel de Gestão do Bolão
+          </h2>
+
+          <p className="text-xs text-slate-300 mt-2 mb-6 leading-relaxed">
+            Acesso restrito. Só entra na conta ADM quem possui o login <strong className="text-amber-400 font-mono">admin</strong> e a senha <strong className="text-amber-400 font-mono">228891</strong>.
+          </p>
+
+          <form onSubmit={handleGateLoginSubmit} className="space-y-3.5 text-left">
+            {gateError && (
+              <div className="p-3 bg-rose-950/70 border border-rose-500/50 rounded-xl text-xs text-rose-200 font-semibold">
+                {gateError}
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">
+                Login de Administrador:
+              </label>
+              <input
+                type="text"
+                required
+                value={adminGateLogin}
+                onChange={e => setAdminGateLogin(e.target.value)}
+                placeholder="admin"
+                className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3.5 py-2.5 rounded-xl focus:border-amber-400 focus:outline-none font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">
+                Senha de Administrador:
+              </label>
+              <input
+                type="password"
+                required
+                value={adminGatePass}
+                onChange={e => setAdminGatePass(e.target.value)}
+                placeholder="Digite a senha (228891)"
+                className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3.5 py-2.5 rounded-xl focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-950/60 transition-all flex items-center justify-center gap-2"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Entrar no Painel ADM</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAdminGateLogin('admin');
+                setAdminGatePass('228891');
+              }}
+              className="w-full py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-[11px] font-semibold text-slate-400 hover:text-amber-300 transition-colors"
+            >
+              Preencher dados oficiais (admin / 228891)
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
   
   // 10 matches for new round
   const [newMatches, setNewMatches] = useState<Omit<Match, 'id' | 'roundId' | 'homeScore' | 'awayScore' | 'status'>[]>([

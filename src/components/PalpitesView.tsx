@@ -379,22 +379,18 @@ export const PalpitesView: React.FC = () => {
 
               {/* Match Teams & Prediction Controls */}
               <div className="grid grid-cols-12 items-center gap-2 sm:gap-4">
-                {/* Home Team */}
-                <div className="col-span-4 sm:col-span-4 flex items-center justify-end gap-2 text-right">
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-extrabold text-white truncate">
-                      {match.homeTeam}
-                    </p>
-                    <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                      {match.homeTeamCode} (Mandante)
-                    </p>
-                  </div>
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center justify-center shrink-0 overflow-hidden shadow">
-                    <img
-                      src={match.homeTeamLogo}
-                      alt={match.homeTeam}
-                      className="w-full h-full object-cover"
-                    />
+                {/* Home Team (No photos as requested) */}
+                <div className="col-span-4 sm:col-span-4 flex flex-col items-end justify-center text-right pr-1">
+                  <p className="text-xs sm:text-sm font-black text-white truncate max-w-full">
+                    {match.homeTeam}
+                  </p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-1.5 py-0.2 rounded font-mono">
+                      {match.homeTeamCode}
+                    </span>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold hidden xs:inline">
+                      Mandante
+                    </span>
                   </div>
                 </div>
 
@@ -476,22 +472,18 @@ export const PalpitesView: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Away Team */}
-                <div className="col-span-4 sm:col-span-4 flex items-center justify-start gap-2 text-left">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center justify-center shrink-0 overflow-hidden shadow">
-                    <img
-                      src={match.awayTeamLogo}
-                      alt={match.awayTeam}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-extrabold text-white truncate">
-                      {match.awayTeam}
-                    </p>
-                    <p className="text-[10px] text-slate-400 uppercase font-semibold">
-                      {match.awayTeamCode} (Visitante)
-                    </p>
+                {/* Away Team (No photos as requested) */}
+                <div className="col-span-4 sm:col-span-4 flex flex-col items-start justify-center text-left pl-1">
+                  <p className="text-xs sm:text-sm font-black text-white truncate max-w-full">
+                    {match.awayTeam}
+                  </p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <span className="text-[10px] font-extrabold text-teal-400 bg-teal-950/60 border border-teal-800/50 px-1.5 py-0.2 rounded font-mono">
+                      {match.awayTeamCode}
+                    </span>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold hidden xs:inline">
+                      Visitante
+                    </span>
                   </div>
                 </div>
               </div>
