@@ -200,6 +200,46 @@ export const BRASILEIRAO_TEAMS: Team[] = [
     primaryColor: '#C4161C',
     stadium: 'Ilha do Retiro',
     city: 'Recife'
+  },
+  {
+    id: 'coritiba',
+    name: 'Coritiba',
+    shortName: 'Coritiba',
+    code: 'CFC',
+    logo: 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?w=100&auto=format&fit=crop&q=60',
+    primaryColor: '#005339',
+    stadium: 'Couto Pereira',
+    city: 'Curitiba'
+  },
+  {
+    id: 'mirassol',
+    name: 'Mirassol',
+    shortName: 'Mirassol',
+    code: 'MIR',
+    logo: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&auto=format&fit=crop&q=60',
+    primaryColor: '#F5A623',
+    stadium: 'José Maria de Campos Maia',
+    city: 'Mirassol'
+  },
+  {
+    id: 'remo',
+    name: 'Remo-PA',
+    shortName: 'Remo',
+    code: 'REM',
+    logo: 'https://images.unsplash.com/photo-1551958219-acbc608c6377?w=100&auto=format&fit=crop&q=60',
+    primaryColor: '#0C2340',
+    stadium: 'Baenão / Mangueirão',
+    city: 'Belém'
+  },
+  {
+    id: 'chapecoense',
+    name: 'Chapecoense',
+    shortName: 'Chapecoense',
+    code: 'CHA',
+    logo: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=100&auto=format&fit=crop&q=60',
+    primaryColor: '#007A3D',
+    stadium: 'Arena Condá',
+    city: 'Chapecó'
   }
 ];
 

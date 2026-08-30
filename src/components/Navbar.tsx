@@ -217,18 +217,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-amber-950/30 rounded-xl transition-colors"
                   >
                     <ShieldCheck className="w-4 h-4 text-amber-400" />
-                    <span>Painel de Administração</span>
+                    <span>{isAdmin ? 'Acessar Painel ADM' : 'Painel de Administração (ADM)'}</span>
                   </button>
 
                   <button
                     onClick={() => {
+                      const wasAdmin = isAdmin;
                       logout();
                       setShowUserMenu(false);
+                      if (wasAdmin || activeTab === 'admin') {
+                        setActiveTab('palpites');
+                        openAuth();
+                      }
                     }}
                     className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-950/30 rounded-xl transition-colors"
                   >
                     <LogOut className="w-4 h-4 text-rose-400" />
-                    <span>Sair da Conta</span>
+                    <span>{isAdmin ? 'Sair do Modo ADM' : 'Sair da Conta'}</span>
                   </button>
                 </div>
               </div>

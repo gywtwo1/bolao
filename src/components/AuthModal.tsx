@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useBolao } from '../context/BolaoContext';
 import { BRASILEIRAO_TEAMS } from '../data/teams';
-import { User, LogIn, UserPlus, X, ShieldCheck, Sparkles, Check } from 'lucide-react';
+import { User, LogIn, UserPlus, X, ShieldCheck, Sparkles, Check, Eye, EyeOff } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -15,12 +15,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   // Login Form
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
+  const [showLoginPass, setShowLoginPass] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   // Register Form
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
-  const [regPass, setRegPass] = useState('');
   const [regTeam, setRegTeam] = useState('Flamengo');
   const [regPix, setRegPix] = useState('');
   const [regPhone, setRegPhone] = useState('');
@@ -66,7 +66,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 {mode === 'login' ? 'Acessar Bolão 2026' : 'Criar Nova Conta'}
               </h3>
               <p className="text-xs text-slate-400">
-                {mode === 'login' ? 'Entre com seu e-mail e senha' : 'Participe do bolão e concorra a prêmios'}
+                {mode === 'login' ? 'Entre com seu login e senha' : 'Participe do bolão e concorra a prêmios'}
               </p>
             </div>
           </div>
@@ -119,7 +119,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <input
                   type="text"
                   required
-                  placeholder="seu.email@exemplo.com"
+                  placeholder="Ex: admin ou seu.email@exemplo.com"
                   value={loginEmail}
                   onChange={e => setLoginEmail(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2.5 rounded-xl focus:border-emerald-400 focus:outline-none"
@@ -130,14 +130,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <label className="text-xs font-bold text-slate-300 block mb-1">
                   Senha:
                 </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={loginPass}
-                  onChange={e => setLoginPass(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2.5 rounded-xl focus:border-emerald-400 focus:outline-none"
-                />
+                <div className="relative">
+                  <input
+                    type={showLoginPass ? 'text' : 'password'}
+                    required
+                    placeholder="••••••••"
+                    value={loginPass}
+                    onChange={e => setLoginPass(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2.5 pr-10 rounded-xl focus:border-emerald-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPass(!showLoginPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    {showLoginPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <button

@@ -23,7 +23,13 @@ const MainAppContent: React.FC = () => {
   const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
 
-  const { isAdmin } = useBolao();
+  const { isAdmin, logout } = useBolao();
+
+  const handleExitAdmin = () => {
+    logout();
+    setActiveTab('palpites');
+    setIsAuthOpen(true);
+  };
 
   const renderActiveView = () => {
     switch (activeTab) {
@@ -36,7 +42,7 @@ const MainAppContent: React.FC = () => {
       case 'notificacoes':
         return <NotificationsView />;
       case 'admin':
-        return <AdminPanel />;
+        return <AdminPanel onExitAdmin={handleExitAdmin} openAuth={() => setIsAuthOpen(true)} />;
       default:
         return <PalpitesView />;
     }

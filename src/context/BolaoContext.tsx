@@ -66,7 +66,27 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Load from localStorage or defaults
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    const loadedUsers: User[] = saved ? JSON.parse(saved) : INITIAL_USERS;
+    const hasAdmin = loadedUsers.some(u => u.role === 'admin' || u.id === 'user-admin' || u.email.toLowerCase() === 'admin');
+    if (!hasAdmin) {
+      const defaultAdmin = INITIAL_USERS.find(u => u.role === 'admin') || {
+        id: 'user-admin',
+        name: 'Administrador Oficial',
+        email: 'admin',
+        role: 'admin',
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+        favoriteTeam: 'Flamengo',
+        pixKey: 'pix@bolao2026.com.br',
+        phone: '(11) 99876-5432',
+        createdAt: '2026-01-10T10:00:00Z',
+        totalPoints: 0,
+        totalExactHits: 0,
+        totalOutcomeHits: 0,
+        roundsParticipated: 0
+      };
+      return [defaultAdmin, ...loadedUsers];
+    }
+    return loadedUsers;
   });
 
   const [teams, setTeams] = useState<Team[]>(() => {
@@ -172,19 +192,29 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const clearPushToast = () => setPushToast(null);
 
   const login = (loginOrEmail: string, pass?: string): { success: boolean; message?: string } => {
-    const cleanInput = loginOrEmail.trim().toLowerCase();
+    const cleanInput = (loginOrEmail || '').trim().toLowerCase();
     const cleanPass = (pass || '').trim();
 
-    // Check for Admin access constraint ("só entra na conta ADM quem tem o login admin e senha 228891")
-    if (cleanInput === 'admin' || cleanInput === 'adm@bolao.com' || cleanInput === 'admin@bolao.com') {
+    const isAdminIdentifier =
+      cleanInput === 'admin' ||
+      cleanInput === 'adm' ||
+      cleanInput === 'administrador' ||
+      cleanInput === 'admin@bolao.com' ||
+      cleanInput === 'adm@bolao.com' ||
+      cleanInput === 'admin@bolao2026.com.br' ||
+      cleanInput === 'adm@bolao2026.com.br' ||
+      cleanInput === 'admin@email.com';
+
+    // Check for Admin access constraint
+    if (isAdminIdentifier) {
       if (cleanPass !== '228891') {
         return {
           success: false,
-          message: 'Senha de Administrador incorreta! Acesso restrito: Login "admin" e Senha "228891".'
+          message: 'Senha de Administrador incorreta.'
         };
       }
 
-      let adminUser = users.find(u => u.role === 'admin' || u.email.toLowerCase() === 'admin');
+      let adminUser = users.find(u => u.role === 'admin' || u.id === 'user-admin' || u.email.toLowerCase() === 'admin');
       if (!adminUser) {
         adminUser = {
           id: 'user-admin',
@@ -194,16 +224,22 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
           favoriteTeam: 'Flamengo',
           pixKey: 'pix@bolao2026.com.br',
+          phone: '(11) 99876-5432',
           createdAt: new Date().toISOString(),
           totalPoints: 0,
           totalExactHits: 0,
           totalOutcomeHits: 0,
           roundsParticipated: 0
         };
-        setUsers(prev => [adminUser!, ...prev]);
+        setUsers(prev => [adminUser!, ...prev.filter(u => u.id !== 'user-admin')]);
+      } else if (adminUser.role !== 'admin') {
+        adminUser = { ...adminUser, role: 'admin' };
+        setUsers(prev => prev.map(u => u.id === adminUser!.id ? { ...u, role: 'admin' } : u));
       }
 
       setCurrentUserId(adminUser.id);
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, adminUser.id);
+
       triggerPush({
         title: '🛡️ Modo Administrador Autenticado',
         message: 'Você entrou na conta ADM com sucesso. O Painel de Administração está liberado.',
@@ -228,12 +264,13 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
       setCurrentUserId(user.id);
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, user.id);
       return { success: true };
     }
 
     return {
       success: false,
-      message: 'Usuário ou e-mail não encontrado. Digite o login correto ou cadastre-se.'
+      message: 'Usuário ou e-mail não encontrado. Verifique os dados digitados ou cadastre-se.'
     };
   };
 
@@ -514,11 +551,28 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const adminCreateRound = (newRoundData: Omit<Round, 'id' | 'totalPot'>) => {
-    const newId = rounds.length > 0 ? Math.max(...rounds.map(r => r.id)) + 1 : 1;
+    // If number is provided and not already taken by another round id, use it as ID, else get max+1
+    const requestedNumber = newRoundData.number;
+    const isIdTaken = rounds.some(r => r.id === requestedNumber);
+    const newId = (requestedNumber && !isIdTaken)
+      ? requestedNumber
+      : (rounds.length > 0 ? Math.max(...rounds.map(r => r.id)) + 1 : 1);
+
+    const formattedMatches = newRoundData.matches.map((m, idx) => ({
+      ...m,
+      id: m.id || `r${newId}-m${idx + 1}`,
+      roundId: newId,
+      homeScore: m.homeScore ?? null,
+      awayScore: m.awayScore ?? null,
+      status: m.status || 'scheduled'
+    }));
+
     const newRound: Round = {
       ...newRoundData,
       id: newId,
-      totalPot: 0
+      number: newRoundData.number || newId,
+      totalPot: 0,
+      matches: formattedMatches
     };
 
     setRounds(prev => [...prev, newRound]);
