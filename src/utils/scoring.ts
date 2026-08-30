@@ -98,3 +98,68 @@ export function evaluateBet(
     details
   };
 }
+
+/**
+ * Checks if betting is closed for a round based strictly on its deadline or admin status.
+ */
+export function isRoundBettingClosed(round: {
+  status: string;
+  deadline?: string;
+  matches?: Array<{ status: string; date?: string }>;
+}): { isClosed: boolean; reason: string } {
+  if (round.status === 'finished') {
+    return { isClosed: true, reason: 'Esta rodada já foi finalizada.' };
+  }
+  if (round.status === 'closed') {
+    return { isClosed: true, reason: 'Rodada encerrada pelo Administrador.' };
+  }
+
+  // Check if current date/time has passed the configured round deadline
+  if (round.deadline) {
+    const deadlineTime = new Date(round.deadline).getTime();
+    if (!isNaN(deadlineTime) && Date.now() > deadlineTime) {
+      return { isClosed: true, reason: 'O horário limite para registrar palpites foi atingido.' };
+    }
+  }
+  return { isClosed: false, reason: '' };
+}
+
+/**
+ * Formats a round deadline ISO string into readable PT-BR date & time.
+ */
+export function formatDeadlineDisplay(deadlineStr?: string): string {
+  if (!deadlineStr) return 'Não definido';
+  try {
+    const d = new Date(deadlineStr);
+    if (isNaN(d.getTime())) return deadlineStr;
+    return d.toLocaleDateString('pt-BR', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return deadlineStr;
+  }
+}
+
+export function formatDeadlineShort(deadlineStr?: string): string {
+  if (!deadlineStr) return 'Não definido';
+  try {
+    const d = new Date(deadlineStr);
+    if (isNaN(d.getTime())) return deadlineStr;
+    return d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit'
+    }) + ' às ' + d.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return deadlineStr;
+  }
+}
+
+

@@ -119,7 +119,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <input
                   type="text"
                   required
-                  placeholder="admin ou carlos@email.com"
+                  placeholder="seu.email@exemplo.com"
                   value={loginEmail}
                   onChange={e => setLoginEmail(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2.5 rounded-xl focus:border-emerald-400 focus:outline-none"
@@ -133,45 +133,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <input
                   type="password"
                   required
-                  placeholder="Digite sua senha (ADM: 228891)"
+                  placeholder="••••••••"
                   value={loginPass}
                   onChange={e => setLoginPass(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2.5 rounded-xl focus:border-emerald-400 focus:outline-none"
                 />
               </div>
 
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 text-[11px] text-amber-300">
-                <span className="font-bold">🔐 Acesso Restrito de Administrador:</span>
-                <p className="text-slate-300 mt-0.5">
-                  Apenas o usuário com login <strong className="text-amber-400">admin</strong> e senha <strong className="text-amber-400 font-mono">228891</strong> tem acesso às funções de ADM.
-                </p>
-              </div>
-
               <button
                 type="submit"
-                className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all"
+                className="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all mt-2"
               >
                 Entrar no Bolão
               </button>
 
-              {/* Demo Accounts List for quick preview */}
+              {/* Demo Accounts List for quick preview (users only) */}
               <div className="pt-3 border-t border-slate-800 space-y-2">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                  Contas de Demonstração:
+                  Contas de Participantes (Acesso Rápido):
                 </span>
                 <div className="space-y-1">
-                  {users.slice(0, 4).map(u => (
+                  {users.filter(u => u.role !== 'admin').slice(0, 3).map(u => (
                     <button
                       key={u.id}
                       type="button"
                       onClick={() => {
-                        if (u.role === 'admin') {
-                          setLoginEmail('admin');
-                          setLoginPass('228891');
-                        } else {
-                          switchUser(u.id);
-                          onClose();
-                        }
+                        switchUser(u.id);
+                        onClose();
                       }}
                       className="w-full flex items-center justify-between p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-left text-slate-200 transition-colors"
                     >
@@ -180,7 +168,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                         <span className="font-semibold">{u.name}</span>
                       </div>
                       <span className="text-[10px] font-bold text-emerald-400">
-                        {u.role === 'admin' ? '🛡️ Preencher Login ADM (228891)' : 'Entrar Direto'}
+                        Entrar Direto
                       </span>
                     </button>
                   ))}

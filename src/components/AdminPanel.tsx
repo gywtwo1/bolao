@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useBolao } from '../context/BolaoContext';
 import { BRASILEIRAO_TEAMS } from '../data/teams';
-import { Match, Round } from '../types';
+import { Match, Round, Team } from '../types';
 import { formatCurrency } from '../utils/pix';
+import { formatDeadlineDisplay, formatDeadlineShort } from '../utils/scoring';
 import { 
   ShieldCheck, 
   CheckCircle2, 
@@ -19,13 +20,16 @@ import {
   AlertTriangle,
   Calendar,
   Sparkles,
-  Search
+  Search,
+  Edit3,
+  Users
 } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
   const {
     rounds,
     bets,
+    teams,
     selectedRoundId,
     isAdmin,
     login,
@@ -35,7 +39,11 @@ export const AdminPanel: React.FC = () => {
     adminDeleteRound,
     adminUpdateMatchScore,
     adminSyncSportsApiScores,
-    adminFinalizeRound
+    adminFinalizeRound,
+    adminAddTeam,
+    adminDeleteTeam,
+    adminUpdateTeam,
+    adminUpdateRoundDeadline
   } = useBolao();
 
   // Admin Login State for Protected Gate
@@ -43,11 +51,33 @@ export const AdminPanel: React.FC = () => {
   const [adminGatePass, setAdminGatePass] = useState('');
   const [gateError, setGateError] = useState('');
 
-  const [adminTab, setAdminTab] = useState<'comprovantes' | 'rodadas' | 'placares'>('comprovantes');
+  // Admin Tab & Modals State
+  const [adminTab, setAdminTab] = useState<'comprovantes' | 'rodadas' | 'placares' | 'times'>('comprovantes');
   const [rejectReason, setRejectReason] = useState<{ [betId: string]: string }>({});
   const [selectedReceiptPreview, setSelectedReceiptPreview] = useState<string | null>(null);
   const [isSyncingApi, setIsSyncingApi] = useState(false);
   const [activeAdminRoundId, setActiveAdminRoundId] = useState<number>(selectedRoundId);
+
+  // In-App Confirmation Modals
+  const [roundToDelete, setRoundToDelete] = useState<Round | null>(null);
+  const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
+  const [editingDeadlineRound, setEditingDeadlineRound] = useState<Round | null>(null);
+  const [editingDeadlineValue, setEditingDeadlineValue] = useState<string>('');
+  const [successToast, setSuccessToast] = useState<string | null>(null);
+
+  // Editing Team State
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editTeamName, setEditTeamName] = useState('');
+  const [editTeamCode, setEditTeamCode] = useState('');
+  const [editTeamStadium, setEditTeamStadium] = useState('');
+  const [editTeamCity, setEditTeamCity] = useState('');
+
+  // Add New Team State
+  const [newTeamName, setNewTeamName] = useState('');
+  const [newTeamCode, setNewTeamCode] = useState('');
+  const [newTeamCity, setNewTeamCity] = useState('');
+  const [newTeamStadium, setNewTeamStadium] = useState('');
+  const [newTeamPrimaryColor, setNewTeamPrimaryColor] = useState('#10b981');
 
   // New Round Creation State
   const [newRoundNumber, setNewRoundNumber] = useState<number>(rounds.length + 1);
@@ -60,7 +90,7 @@ export const AdminPanel: React.FC = () => {
     setGateError('');
     const res = login(adminGateLogin, adminGatePass);
     if (!res.success) {
-      setGateError(res.message || 'Credenciais inválidas. Utilize login admin e senha 228891.');
+      setGateError(res.message || 'Credenciais inválidas. Verifique seu login e senha.');
     }
   };
 
@@ -68,23 +98,23 @@ export const AdminPanel: React.FC = () => {
   if (!isAdmin) {
     return (
       <div className="max-w-md mx-auto px-4 py-8 pb-24">
-        <div className="bg-slate-900/95 border border-amber-500/40 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-amber-950/30 text-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
 
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-950/50">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-950/40">
             <ShieldCheck className="w-8 h-8" />
           </div>
 
-          <span className="text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 inline-block mb-2">
-            Área Restrita do Administrador
+          <span className="text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700 inline-block mb-2">
+            Acesso Restrito
           </span>
 
           <h2 className="text-xl font-black text-white">
-            Painel de Gestão do Bolão
+            Painel de Coordenação
           </h2>
 
-          <p className="text-xs text-slate-300 mt-2 mb-6 leading-relaxed">
-            Acesso restrito. Só entra na conta ADM quem possui o login <strong className="text-amber-400 font-mono">admin</strong> e a senha <strong className="text-amber-400 font-mono">228891</strong>.
+          <p className="text-xs text-slate-400 mt-2 mb-6 leading-relaxed">
+            Área de acesso restrito aos administradores do Bolão. Insira suas credenciais autorizadas para gerenciar rodadas e pagamentos.
           </p>
 
           <form onSubmit={handleGateLoginSubmit} className="space-y-3.5 text-left">
@@ -96,29 +126,29 @@ export const AdminPanel: React.FC = () => {
 
             <div>
               <label className="text-xs font-bold text-slate-300 block mb-1">
-                Login de Administrador:
+                Usuário / Login:
               </label>
               <input
                 type="text"
                 required
                 value={adminGateLogin}
                 onChange={e => setAdminGateLogin(e.target.value)}
-                placeholder="admin"
-                className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3.5 py-2.5 rounded-xl focus:border-amber-400 focus:outline-none font-mono"
+                placeholder="Insira seu login"
+                className="w-full bg-slate-950 border border-slate-800 text-xs text-white px-3.5 py-2.5 rounded-xl focus:border-amber-400 focus:outline-none font-sans"
               />
             </div>
 
             <div>
               <label className="text-xs font-bold text-slate-300 block mb-1">
-                Senha de Administrador:
+                Senha de Acesso:
               </label>
               <input
                 type="password"
                 required
                 value={adminGatePass}
                 onChange={e => setAdminGatePass(e.target.value)}
-                placeholder="Digite a senha (228891)"
-                className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3.5 py-2.5 rounded-xl focus:border-amber-400 focus:outline-none"
+                placeholder="••••••••"
+                className="w-full bg-slate-950 border border-slate-800 text-xs text-white px-3.5 py-2.5 rounded-xl focus:border-amber-400 focus:outline-none"
               />
             </div>
 
@@ -128,20 +158,9 @@ export const AdminPanel: React.FC = () => {
                 className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-amber-950/60 transition-all flex items-center justify-center gap-2"
               >
                 <ShieldCheck className="w-4 h-4" />
-                <span>Entrar no Painel ADM</span>
+                <span>Autenticar Acesso</span>
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setAdminGateLogin('admin');
-                setAdminGatePass('228891');
-              }}
-              className="w-full py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-[11px] font-semibold text-slate-400 hover:text-amber-300 transition-colors"
-            >
-              Preencher dados oficiais (admin / 228891)
-            </button>
           </form>
         </div>
       </div>
@@ -185,6 +204,11 @@ export const AdminPanel: React.FC = () => {
       return;
     }
 
+    if (!newRoundDeadline) {
+      alert('Informe a data e horário limite de fechamento para os palpites!');
+      return;
+    }
+
     const formattedMatches: Match[] = newMatches.map((m, idx) => ({
       ...m,
       id: `r${newRoundNumber}-m${idx + 1}`,
@@ -204,12 +228,13 @@ export const AdminPanel: React.FC = () => {
       matches: formattedMatches
     });
 
-    alert('Nova rodada criada com sucesso com 10 jogos e aberta para palpites!');
+    setSuccessToast(`Nova rodada ${newRoundNumber} criada com sucesso! Fechamento: ${formatDeadlineShort(newRoundDeadline)}`);
+    setTimeout(() => setSuccessToast(null), 4000);
     setAdminTab('rodadas');
   };
 
   const handleMatchTeamChange = (index: number, teamType: 'home' | 'away', teamName: string) => {
-    const foundTeam = BRASILEIRAO_TEAMS.find(t => t.name === teamName);
+    const foundTeam = teams.find(t => t.name === teamName) || BRASILEIRAO_TEAMS.find(t => t.name === teamName);
     if (!foundTeam) return;
 
     setNewMatches(prev => {
@@ -232,6 +257,50 @@ export const AdminPanel: React.FC = () => {
       }
       return copy;
     });
+  };
+
+  const handleStartEditTeam = (team: Team) => {
+    setEditingTeamId(team.id);
+    setEditTeamName(team.name);
+    setEditTeamCode(team.code);
+    setEditTeamStadium(team.stadium);
+    setEditTeamCity(team.city);
+  };
+
+  const handleSaveTeamEdit = (teamId: string) => {
+    if (!editTeamName.trim() || !editTeamCode.trim()) {
+      alert('Nome e sigla do time são obrigatórios!');
+      return;
+    }
+    adminUpdateTeam(teamId, {
+      name: editTeamName.trim(),
+      code: editTeamCode.trim().toUpperCase(),
+      stadium: editTeamStadium.trim(),
+      city: editTeamCity.trim()
+    });
+    setEditingTeamId(null);
+    alert('Time atualizado com sucesso! Alterações refletidas nas rodadas.');
+  };
+
+  const handleCreateNewTeam = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTeamName.trim() || !newTeamCode.trim()) {
+      alert('Nome e sigla são obrigatórios!');
+      return;
+    }
+    adminAddTeam({
+      name: newTeamName.trim(),
+      code: newTeamCode.trim().toUpperCase(),
+      city: newTeamCity.trim() || 'Brasil',
+      stadium: newTeamStadium.trim() || 'Estádio Principal',
+      primaryColor: newTeamPrimaryColor || '#10b981',
+      secondaryColor: '#ffffff'
+    });
+    setNewTeamName('');
+    setNewTeamCode('');
+    setNewTeamCity('');
+    setNewTeamStadium('');
+    alert('Novo time adicionado com sucesso à base do Brasileirão 2026!');
   };
 
   return (
@@ -278,10 +347,10 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         {/* Sub-tabs */}
-        <div className="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-3 gap-2">
+        <div className="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-2">
           <button
             onClick={() => setAdminTab('comprovantes')}
-            className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               adminTab === 'comprovantes'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/60'
                 : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800'
@@ -300,7 +369,7 @@ export const AdminPanel: React.FC = () => {
 
           <button
             onClick={() => setAdminTab('rodadas')}
-            className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               adminTab === 'rodadas'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/60'
                 : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800'
@@ -312,14 +381,26 @@ export const AdminPanel: React.FC = () => {
 
           <button
             onClick={() => setAdminTab('placares')}
-            className={`py-2.5 px-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               adminTab === 'placares'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/60'
                 : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800'
             }`}
           >
             <Zap className="w-4 h-4" />
-            <span>API & Placares Oficiais</span>
+            <span>API & Placares</span>
+          </button>
+
+          <button
+            onClick={() => setAdminTab('times')}
+            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              adminTab === 'times'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/60'
+                : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Times ({teams.length})</span>
           </button>
         </div>
       </div>
@@ -528,8 +609,8 @@ export const AdminPanel: React.FC = () => {
                   key={r.id}
                   className="bg-slate-950 border border-slate-800/80 p-3.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                 >
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-sm font-extrabold text-white">{r.title}</h4>
                       <span
                         className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded ${
@@ -543,12 +624,32 @@ export const AdminPanel: React.FC = () => {
                         {r.status === 'open' ? '🟢 Aberta' : r.status === 'finished' ? 'Finalizada' : r.status}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-slate-400">
                       10 Jogos • Taxa: {formatCurrency(r.price)} • Pote Acumulado: <strong className="text-amber-400">{formatCurrency(r.totalPot)}</strong>
                     </p>
+                    <div className="flex items-center gap-2 pt-0.5 text-xs text-amber-300">
+                      <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>
+                        Fechamento: <strong className="text-white">{formatDeadlineDisplay(r.deadline)}</strong>
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Edit Deadline Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingDeadlineRound(r);
+                        setEditingDeadlineValue(r.deadline ? (r.deadline.length > 16 ? r.deadline.slice(0, 16) : r.deadline) : '2026-04-26T16:00');
+                      }}
+                      className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold rounded-xl transition-colors flex items-center gap-1"
+                      title="Editar Horário de Fechamento"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Alterar Horário</span>
+                    </button>
+
                     <button
                       onClick={() => adminFinalizeRound(r.id)}
                       className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors"
@@ -556,17 +657,15 @@ export const AdminPanel: React.FC = () => {
                       {r.status === 'finished' ? 'Recalcular Pontos' : 'Finalizar Rodada'}
                     </button>
 
-                    {/* Delete Round Button */}
+                    {/* Delete Round Button - opens in-app confirmation modal */}
                     <button
-                      onClick={() => {
-                        if (confirm(`Tem certeza que deseja deletar a "${r.title}"? Ela será removida da tela de palpites de todos os usuários.`)) {
-                          adminDeleteRound(r.id);
-                        }
-                      }}
-                      className="p-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl transition-colors"
-                      title="Deletar Rodada da Tela de Palpites"
+                      type="button"
+                      onClick={() => setRoundToDelete(r)}
+                      className="p-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-bold"
+                      title="Deletar Rodada"
                     >
                       <Trash2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">Excluir</span>
                     </button>
                   </div>
                 </div>
@@ -641,6 +740,116 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* Closing Deadline Section (Horário de Fechamento para Palpitar) */}
+            <div className="bg-slate-950 p-4 rounded-2xl border border-amber-500/30 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-amber-400" />
+                    Data e Horário de Fechamento para Palpitar (Obrigatório):
+                  </label>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Os palpites dos participantes serão bloqueados automaticamente assim que atingir este horário limite.
+                  </p>
+                </div>
+                <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
+                  ⏰ Bloqueio Automático
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div className="sm:col-span-5">
+                  <input
+                    type="datetime-local"
+                    required
+                    value={newRoundDeadline}
+                    onChange={e => setNewRoundDeadline(e.target.value)}
+                    className="w-full bg-slate-900 border border-amber-500/50 text-xs sm:text-sm font-bold text-amber-300 px-3.5 py-2.5 rounded-xl focus:border-amber-400 focus:outline-none"
+                  />
+                </div>
+
+                {/* Quick Presets for Admin */}
+                <div className="sm:col-span-7 flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setHours(16, 0, 0, 0);
+                      setNewRoundDeadline(d.toISOString().slice(0, 16));
+                    }}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
+                  >
+                    Hoje 16h
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + 1);
+                      d.setHours(16, 0, 0, 0);
+                      setNewRoundDeadline(d.toISOString().slice(0, 16));
+                    }}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
+                  >
+                    Amanhã 16h
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      const day = d.getDay();
+                      const diff = (6 - day + 7) % 7 || 7;
+                      d.setDate(d.getDate() + diff);
+                      d.setHours(16, 0, 0, 0);
+                      setNewRoundDeadline(d.toISOString().slice(0, 16));
+                    }}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
+                  >
+                    Sábado 16h
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      const day = d.getDay();
+                      const diff = (7 - day + 7) % 7 || 7;
+                      d.setDate(d.getDate() + diff);
+                      d.setHours(16, 0, 0, 0);
+                      setNewRoundDeadline(d.toISOString().slice(0, 16));
+                    }}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
+                  >
+                    Domingo 16h
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      const day = d.getDay();
+                      const diff = (3 - day + 7) % 7 || 7;
+                      d.setDate(d.getDate() + diff);
+                      d.setHours(19, 30, 0, 0);
+                      setNewRoundDeadline(d.toISOString().slice(0, 16));
+                    }}
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
+                  >
+                    Quarta 19h30
+                  </button>
+                </div>
+              </div>
+
+              {/* Formatted Confirmation Preview */}
+              <div className="text-xs text-slate-300 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  Fechamento configurado para:{' '}
+                  <strong className="text-amber-300 font-bold">
+                    {formatDeadlineDisplay(newRoundDeadline)}
+                  </strong>
+                </span>
+              </div>
+            </div>
+
             {/* 10 Matches Editor */}
             <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between">
@@ -669,7 +878,7 @@ export const AdminPanel: React.FC = () => {
                         onChange={e => handleMatchTeamChange(idx, 'home', e.target.value)}
                         className="w-full bg-slate-900 text-white font-bold px-2 py-1.5 rounded-lg border border-slate-700"
                       >
-                        {BRASILEIRAO_TEAMS.map(team => (
+                        {teams.map(team => (
                           <option key={team.id} value={team.name}>
                             {team.name} ({team.code})
                           </option>
@@ -688,7 +897,7 @@ export const AdminPanel: React.FC = () => {
                         onChange={e => handleMatchTeamChange(idx, 'away', e.target.value)}
                         className="w-full bg-slate-900 text-white font-bold px-2 py-1.5 rounded-lg border border-slate-700"
                       >
-                        {BRASILEIRAO_TEAMS.map(team => (
+                        {teams.map(team => (
                           <option key={team.id} value={team.name}>
                             {team.name} ({team.code})
                           </option>
@@ -758,12 +967,26 @@ export const AdminPanel: React.FC = () => {
           {targetRound && (
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <span className="text-xs font-bold text-white">
-                  Jogos da {targetRound.title}:
-                </span>
-                <span className="text-[11px] text-slate-400">
-                  Placar Exato = 3 pts • Acerto Vencedor = 1 pt
-                </span>
+                <div>
+                  <span className="text-xs font-bold text-white">
+                    Jogos da {targetRound.title}:
+                  </span>
+                  <span className="text-[11px] text-slate-400 block sm:inline sm:ml-2">
+                    Placar Exato = 3 pts • Acerto Vencedor = 1 pt
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRoundToDelete(targetRound)}
+                    className="p-1.5 px-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
+                    title="Excluir esta rodada"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Excluir Rodada</span>
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-2.5">
@@ -831,6 +1054,508 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 4: GERENCIAR TIMES (EDITAR NOME, DELETAR, ADICIONAR) */}
+      {/* ======================================================== */}
+      {adminTab === 'times' && (
+        <div className="space-y-6">
+          {/* Add New Team Card */}
+          <form
+            onSubmit={handleCreateNewTeam}
+            className="bg-slate-900 border border-amber-500/40 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <PlusCircle className="w-5 h-5 text-amber-400" />
+                  Adicionar Novo Time ao Brasileirão 2026
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Cadastre novos times para utilização na criação de rodadas e confrontos do Bolão.
+                </p>
+              </div>
+              <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-500/30">
+                Total de Times: {teams.length}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Nome do Time:
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Santos FC"
+                  value={newTeamName}
+                  onChange={e => setNewTeamName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2 rounded-xl focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Sigla (3 letras):
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={4}
+                  placeholder="Ex: SAN"
+                  value={newTeamCode}
+                  onChange={e => setNewTeamCode(e.target.value.toUpperCase())}
+                  className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2 rounded-xl focus:border-amber-400 focus:outline-none font-mono uppercase"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Estádio:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Vila Belmiro"
+                  value={newTeamStadium}
+                  onChange={e => setNewTeamStadium(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2 rounded-xl focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Cidade / UF:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Santos (SP)"
+                  value={newTeamCity}
+                  onChange={e => setNewTeamCity(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2 rounded-xl focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="py-2.5 px-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-950/60 transition-all flex items-center justify-center gap-2"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Salvar Novo Time</span>
+            </button>
+          </form>
+
+          {/* List of Teams with Edit and Delete */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-3">
+            <div>
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-emerald-400" />
+                Times do Brasileirão ({teams.length})
+              </h3>
+              <p className="text-xs text-slate-400">
+                O Administrador pode editar o nome, sigla, estádio ou deletar times. A alteração de nome atualiza automaticamente os confrontos das rodadas.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {teams.map(team => {
+                const isEditing = editingTeamId === team.id;
+
+                return (
+                  <div
+                    key={team.id}
+                    className="bg-slate-950 border border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between gap-2.5"
+                  >
+                    {isEditing ? (
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                          <span className="text-[11px] font-bold text-amber-400">Editando Time:</span>
+                          <span className="text-[10px] text-slate-400 font-mono">ID: {team.id}</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block">Nome do Time:</label>
+                            <input
+                              type="text"
+                              value={editTeamName}
+                              onChange={e => setEditTeamName(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 text-white px-2 py-1 rounded text-xs focus:border-amber-400"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block">Sigla:</label>
+                            <input
+                              type="text"
+                              maxLength={4}
+                              value={editTeamCode}
+                              onChange={e => setEditTeamCode(e.target.value.toUpperCase())}
+                              className="w-full bg-slate-900 border border-slate-700 text-white px-2 py-1 rounded text-xs font-mono uppercase focus:border-amber-400"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block">Estádio:</label>
+                            <input
+                              type="text"
+                              value={editTeamStadium}
+                              onChange={e => setEditTeamStadium(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 text-white px-2 py-1 rounded text-xs focus:border-amber-400"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 block">Cidade:</label>
+                            <input
+                              type="text"
+                              value={editTeamCity}
+                              onChange={e => setEditTeamCity(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-700 text-white px-2 py-1 rounded text-xs focus:border-amber-400"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleSaveTeamEdit(team.id)}
+                            className="flex-1 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-lg transition-colors flex items-center justify-center gap-1"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Salvar Alteração</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingTeamId(null)}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-lg transition-colors"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center font-black font-mono text-emerald-400 text-xs shrink-0">
+                            {team.code}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-black text-white truncate">
+                              {team.name}
+                            </h4>
+                            <p className="text-[11px] text-slate-400 truncate">
+                              {team.stadium || 'Estádio'} • {team.city || 'Brasil'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Edit Team Button */}
+                          <button
+                            onClick={() => handleStartEditTeam(team)}
+                            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-colors"
+                            title="Editar Nome do Time"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                          </button>
+
+                          {/* Delete Team Button */}
+                          <button
+                            type="button"
+                            onClick={() => setTeamToDelete(team)}
+                            className="p-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded-xl transition-colors"
+                            title="Deletar Time"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Round Deadline Modal */}
+      {editingDeadlineRound && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setEditingDeadlineRound(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="bg-slate-900 border-2 border-amber-500/50 rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4"
+          >
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
+              <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30 shrink-0">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-base font-black text-white">Alterar Horário de Fechamento</h4>
+                <p className="text-xs text-slate-400">{editingDeadlineRound.title}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Nova Data e Horário Limite dos Palpites:
+                </label>
+                <input
+                  type="datetime-local"
+                  value={editingDeadlineValue}
+                  onChange={e => setEditingDeadlineValue(e.target.value)}
+                  className="w-full bg-slate-950 border border-amber-500/50 text-sm font-bold text-amber-300 px-3.5 py-2.5 rounded-xl focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              {/* Quick presets inside modal */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setHours(16, 0, 0, 0);
+                    setEditingDeadlineValue(d.toISOString().slice(0, 16));
+                  }}
+                  className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[11px] font-semibold text-slate-300 transition-colors"
+                >
+                  Hoje 16h
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 1);
+                    d.setHours(16, 0, 0, 0);
+                    setEditingDeadlineValue(d.toISOString().slice(0, 16));
+                  }}
+                  className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[11px] font-semibold text-slate-300 transition-colors"
+                >
+                  Amanhã 16h
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    const day = d.getDay();
+                    const diff = (6 - day + 7) % 7 || 7;
+                    d.setDate(d.getDate() + diff);
+                    d.setHours(16, 0, 0, 0);
+                    setEditingDeadlineValue(d.toISOString().slice(0, 16));
+                  }}
+                  className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[11px] font-semibold text-slate-300 transition-colors"
+                >
+                  Sábado 16h
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    const day = d.getDay();
+                    const diff = (7 - day + 7) % 7 || 7;
+                    d.setDate(d.getDate() + diff);
+                    d.setHours(16, 0, 0, 0);
+                    setEditingDeadlineValue(d.toISOString().slice(0, 16));
+                  }}
+                  className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[11px] font-semibold text-slate-300 transition-colors"
+                >
+                  Domingo 16h
+                </button>
+              </div>
+
+              <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs text-slate-300 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  Fechamento: <strong className="text-amber-300 font-bold">{formatDeadlineDisplay(editingDeadlineValue)}</strong>
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingDeadlineRound(null)}
+                className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!editingDeadlineValue) {
+                    alert('Selecione uma data e horário válido!');
+                    return;
+                  }
+                  adminUpdateRoundDeadline(editingDeadlineRound.id, editingDeadlineValue);
+                  setEditingDeadlineRound(null);
+                  setSuccessToast(`Horário de fechamento da "${editingDeadlineRound.title}" atualizado para ${formatDeadlineShort(editingDeadlineValue)}!`);
+                  setTimeout(() => setSuccessToast(null), 4000);
+                }}
+                className="py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Salvar Horário</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-App Confirmation Modal: Delete Round */}
+      {roundToDelete && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setRoundToDelete(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="bg-slate-900 border border-rose-500/50 rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl shadow-rose-950/50 space-y-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-rose-500/20 text-rose-400 rounded-2xl border border-rose-500/40 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">
+                  Excluir Rodada Definitivamente?
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Confirmação de exclusão do sistema
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-white text-sm">{roundToDelete.title}</span>
+                <span
+                  className={`text-[10px] uppercase font-black px-2 py-0.5 rounded ${
+                    roundToDelete.status === 'open'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : roundToDelete.status === 'finished'
+                      ? 'bg-slate-800 text-slate-300 border border-slate-700'
+                      : 'bg-amber-500/20 text-amber-300'
+                  }`}
+                >
+                  {roundToDelete.status === 'open' ? 'Aberta' : roundToDelete.status === 'finished' ? 'Finalizada' : roundToDelete.status}
+                </span>
+              </div>
+
+              <p className="text-slate-400 text-xs">
+                10 Jogos • Pote Acumulado: <strong className="text-amber-400">{formatCurrency(roundToDelete.totalPot)}</strong>
+              </p>
+
+              <div className="p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-[11px] text-rose-300 space-y-1">
+                <p className="font-bold flex items-center gap-1.5">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  O que acontece ao excluir:
+                </p>
+                <p className="text-rose-200/80">
+                  • A rodada é removida da tela de palpites e do histórico de todos os usuários.<br />
+                  • Os 10 confrontos e os palpites registrados são excluídos com segurança.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setRoundToDelete(null)}
+                className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const targetId = roundToDelete.id;
+                  setRoundToDelete(null);
+                  adminDeleteRound(targetId);
+                  setSuccessToast('Rodada excluída do sistema com sucesso!');
+                  setTimeout(() => setSuccessToast(null), 4000);
+                }}
+                className="py-2.5 px-4 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-black text-xs rounded-xl shadow-lg shadow-rose-950/60 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Sim, Excluir</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-App Confirmation Modal: Delete Team */}
+      {teamToDelete && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setTeamToDelete(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="bg-slate-900 border border-rose-500/50 rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-rose-500/20 text-rose-400 rounded-2xl border border-rose-500/40 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">
+                  Excluir Time da Base?
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Confirmação de exclusão
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-xs">
+              <p className="font-bold text-white text-sm">{teamToDelete.name} ({teamToDelete.code})</p>
+              <p className="text-slate-400 text-[11px] mt-0.5">{teamToDelete.stadium} • {teamToDelete.city}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setTeamToDelete(null)}
+                className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const targetId = teamToDelete.id;
+                  setTeamToDelete(null);
+                  adminDeleteTeam(targetId);
+                  setSuccessToast('Time removido da base de dados com sucesso!');
+                  setTimeout(() => setSuccessToast(null), 4000);
+                }}
+                className="py-2.5 px-4 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Sim, Excluir</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Toast Notification */}
+      {successToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 border border-emerald-300">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>{successToast}</span>
         </div>
       )}
 

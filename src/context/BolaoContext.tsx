@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { User, Round, UserBet, AppNotification, RankingEntry, Match, Team } from '../types';
 import { INITIAL_USERS, INITIAL_ROUNDS, INITIAL_BETS, INITIAL_NOTIFICATIONS } from '../data/initialData';
 import { BRASILEIRAO_TEAMS } from '../data/teams';
-import { evaluateBet } from '../utils/scoring';
+import { evaluateBet, isRoundBettingClosed } from '../utils/scoring';
 import { fetchLiveSportsScores } from '../utils/sportsApi';
 import confetti from 'canvas-confetti';
 
@@ -44,6 +44,7 @@ interface BolaoContextType {
   adminDeleteTeam: (teamId: string) => void;
   adminUpdateTeam: (teamId: string, updated: Partial<Team>) => void;
   adminEditMatchTeams: (roundId: number, matchId: string, homeTeamName: string, awayTeamName: string, stadium?: string) => void;
+  adminUpdateRoundDeadline: (roundId: number, newDeadline: string) => void;
   // Ranking
   getGlobalRanking: () => RankingEntry[];
   getRoundRanking: (roundId: number) => RankingEntry[];
@@ -85,7 +86,19 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    const initialList: AppNotification[] = saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    
+    // Ensure all notifications have unique IDs to prevent React duplicate key errors
+    const seenIds = new Set<string>();
+    return initialList.map((n, idx) => {
+      if (!n.id || seenIds.has(n.id)) {
+        const uniqueId = `notif-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`;
+        seenIds.add(uniqueId);
+        return { ...n, id: uniqueId };
+      }
+      seenIds.add(n.id);
+      return n;
+    });
   });
 
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
@@ -140,9 +153,10 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const unreadNotifsCount = notifications.filter(n => !n.read && (!n.userId || n.userId === currentUserId)).length;
 
   const triggerPush = useCallback((notif: Omit<AppNotification, 'id' | 'createdAt' | 'read'>) => {
+    const uniqueSuffix = Math.random().toString(36).substring(2, 8) + '-' + Math.floor(Math.random() * 10000);
     const newNotif: AppNotification = {
       ...notif,
-      id: 'notif-' + Date.now(),
+      id: `notif-${Date.now()}-${uniqueSuffix}`,
       createdAt: new Date().toISOString(),
       read: false
     };
@@ -209,7 +223,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (cleanPass !== '228891') {
           return {
             success: false,
-            message: 'Senha de Administrador incorreta! Acesso restrito: Login "admin" e Senha "228891".'
+            message: 'Senha incorreta para esta conta de Administrador.'
           };
         }
       }
@@ -261,7 +275,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (adminPass !== '228891') {
         return {
           success: false,
-          message: 'Acesso restrito: Para entrar na conta ADM é necessário o login "admin" e senha "228891".'
+          message: 'Acesso restrito: Credenciais de Administrador obrigatórias.'
         };
       }
     }
@@ -276,6 +290,19 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updatePrediction = (roundId: number, matchId: string, home: number | null, away: number | null) => {
     if (!currentUser) return;
+
+    const targetRound = rounds.find(r => r.id === roundId);
+    if (targetRound) {
+      const closedCheck = isRoundBettingClosed(targetRound);
+      if (closedCheck.isClosed) {
+        triggerPush({
+          title: '🔒 Palpites Encerrados',
+          message: `${closedCheck.reason} Não é possível alterar palpites depois que o 1º jogo começou.`,
+          type: 'system'
+        });
+        return;
+      }
+    }
 
     // Cannot edit if already locked or confirmed
     const existingBet = bets.find(b => b.userId === currentUserId && b.roundId === roundId);
@@ -325,6 +352,15 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const lockAndProceedToPayment = (roundId: number): { success: boolean; missingMatchId?: string; missingIndex?: number; message?: string } => {
     const round = rounds.find(r => r.id === roundId);
     if (!round) return { success: false, message: 'Rodada não encontrada' };
+
+    // Check if 1st game started or deadline passed
+    const closedCheck = isRoundBettingClosed(round);
+    if (closedCheck.isClosed) {
+      return {
+        success: false,
+        message: `Não é possível registrar palpites. ${closedCheck.reason}`
+      };
+    }
 
     const bet = bets.find(b => b.userId === currentUserId && b.roundId === roundId);
     const predictions = bet?.predictions || {};
@@ -497,14 +533,72 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const adminDeleteRound = (roundId: number) => {
-    // Soft delete / archive to remove from active screens as requested ("adm pode deleta as rodadas para nao fica na tela de palpites")
-    setRounds(prev => prev.filter(r => r.id !== roundId));
-    setBets(prev => prev.filter(b => b.roundId !== roundId));
+    const targetRound = rounds.find(r => r.id === roundId);
 
-    const remaining = rounds.filter(r => r.id !== roundId);
-    if (remaining.length > 0) {
-      setSelectedRoundId(remaining[0].id);
-    }
+    setRounds(prev => {
+      const nextRounds = prev.filter(r => r.id !== roundId);
+      return nextRounds;
+    });
+
+    setBets(prev => {
+      const remainingBets = prev.filter(b => b.roundId !== roundId);
+
+      // Update overall users total points based on all remaining confirmed bets
+      setUsers(currentUsers => {
+        return currentUsers.map(user => {
+          const userConfirmedBets = remainingBets.filter(b => b.userId === user.id && b.status === 'confirmed');
+          const totalPoints = userConfirmedBets.reduce((sum, b) => sum + (b.calculatedPoints || 0), 0);
+          const exactHits = userConfirmedBets.reduce((sum, b) => sum + (b.exactHitsCount || 0), 0);
+          const outcomeHits = userConfirmedBets.reduce((sum, b) => sum + (b.outcomeHitsCount || 0), 0);
+
+          return {
+            ...user,
+            totalPoints,
+            totalExactHits: exactHits,
+            totalOutcomeHits: outcomeHits,
+            roundsParticipated: userConfirmedBets.length
+          };
+        });
+      });
+
+      return remainingBets;
+    });
+
+    setSelectedRoundId(prevId => {
+      if (prevId === roundId) {
+        const remaining = rounds.filter(r => r.id !== roundId);
+        return remaining.length > 0 ? remaining[0].id : 0;
+      }
+      return prevId;
+    });
+
+    triggerPush({
+      title: '🗑️ Rodada Excluída com Sucesso',
+      message: `A rodada "${targetRound?.title || 'Rodada'}" foi deletada do sistema.`,
+      type: 'system'
+    });
+  };
+
+  const adminUpdateRoundDeadline = (roundId: number, newDeadline: string) => {
+    setRounds(prev =>
+      prev.map(r => {
+        if (r.id === roundId) {
+          return {
+            ...r,
+            deadline: newDeadline
+          };
+        }
+        return r;
+      })
+    );
+
+    const target = rounds.find(r => r.id === roundId);
+    triggerPush({
+      title: '⏰ Horário Limite Atualizado',
+      message: `O horário limite de palpites para "${target?.title || `Rodada ${roundId}`}" foi atualizado para ${new Date(newDeadline).toLocaleString('pt-BR')}.`,
+      type: 'system',
+      roundId
+    });
   };
 
   const adminUpdateMatchScore = (
@@ -643,7 +737,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const adminAddTeam = (teamData: Omit<Team, 'id'>) => {
     const newTeam: Team = {
       ...teamData,
-      id: `team-${Date.now()}`
+      id: `team-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
     };
     setTeams(prev => [...prev, newTeam]);
     triggerPush({
@@ -664,7 +758,40 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const adminUpdateTeam = (teamId: string, updated: Partial<Team>) => {
+    const oldTeam = teams.find(t => t.id === teamId);
+    const oldName = oldTeam?.name;
+
     setTeams(prev => prev.map(t => (t.id === teamId ? { ...t, ...updated } : t)));
+
+    // Cascade changes to match cards in rounds
+    if (oldName && (updated.name || updated.code || updated.stadium || updated.logo)) {
+      setRounds(prevRounds =>
+        prevRounds.map(round => ({
+          ...round,
+          matches: round.matches.map(m => {
+            let modMatch = { ...m };
+            if (m.homeTeam === oldName) {
+              modMatch.homeTeam = updated.name || m.homeTeam;
+              if (updated.code) modMatch.homeTeamCode = updated.code;
+              if (updated.logo) modMatch.homeTeamLogo = updated.logo;
+              if (updated.stadium) modMatch.stadium = `${updated.stadium} (${(updated.city || oldTeam?.city || '').slice(0, 2).toUpperCase()})`;
+            }
+            if (m.awayTeam === oldName) {
+              modMatch.awayTeam = updated.name || m.awayTeam;
+              if (updated.code) modMatch.awayTeamCode = updated.code;
+              if (updated.logo) modMatch.awayTeamLogo = updated.logo;
+            }
+            return modMatch;
+          })
+        }))
+      );
+    }
+
+    triggerPush({
+      title: '🛡️ Dados do Time Atualizados!',
+      message: `As informações do clube "${updated.name || oldTeam?.name}" foram salvas pelo Administrador.`,
+      type: 'system'
+    });
   };
 
   const adminEditMatchTeams = (
@@ -771,6 +898,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       value={{
         currentUser,
         users,
+        teams,
         rounds: visibleRounds,
         bets,
         notifications,
@@ -799,6 +927,11 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         adminUpdateMatchScore,
         adminSyncSportsApiScores,
         adminFinalizeRound,
+        adminAddTeam,
+        adminDeleteTeam,
+        adminUpdateTeam,
+        adminEditMatchTeams,
+        adminUpdateRoundDeadline,
         getGlobalRanking,
         getRoundRanking
       }}

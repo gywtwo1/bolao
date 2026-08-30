@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useBolao } from '../context/BolaoContext';
 import { Match } from '../types';
-import { calculateMatchScore } from '../utils/scoring';
+import { calculateMatchScore, isRoundBettingClosed, formatDeadlineShort } from '../utils/scoring';
 import { formatCurrency } from '../utils/pix';
 import { 
   Lock, 
@@ -40,7 +40,11 @@ export const PalpitesView: React.FC = () => {
 
   const predictions = getUserPredictionsForRound(selectedRoundId);
 
-  const isLocked = activeBet?.isLocked || (activeBet && activeBet.status !== 'draft');
+  // Check if round deadline expired or round is closed
+  const roundClosedCheck = activeRound ? isRoundBettingClosed(activeRound) : { isClosed: false, reason: '' };
+  const isBettingClosed = roundClosedCheck.isClosed;
+
+  const isLocked = isBettingClosed || activeBet?.isLocked || (activeBet && activeBet.status !== 'draft');
   const betStatus = activeBet?.status || 'draft';
 
   // Count how many matches have been predicted
@@ -151,7 +155,7 @@ export const PalpitesView: React.FC = () => {
         <div className="flex items-center gap-3 text-xs">
           <div className="flex items-center gap-1 text-slate-400">
             <Clock className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Limite: 19/04 16:00</span>
+            <span>Limite: {formatDeadlineShort(activeRound.deadline)}</span>
           </div>
           <div className="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
             <DollarSign className="w-3.5 h-3.5" />
@@ -159,6 +163,28 @@ export const PalpitesView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Warning Banner if Betting is Closed (Deadline Passed) */}
+      {isBettingClosed && (
+        <div className="bg-gradient-to-r from-red-950/80 via-slate-900 to-slate-900 border border-red-500/50 rounded-2xl p-4 flex items-center gap-3.5 shadow-xl">
+          <div className="p-2.5 bg-red-500/20 text-red-400 rounded-xl shrink-0 border border-red-500/30">
+            <Lock className="w-6 h-6" />
+          </div>
+          <div className="text-xs">
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-black text-white">
+                🔒 Palpites Encerrados para esta Rodada!
+              </h4>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/30 text-red-300 border border-red-500/40">
+                Horário Limite Atingido
+              </span>
+            </div>
+            <p className="text-slate-300 mt-1 leading-relaxed">
+              {roundClosedCheck.reason} Os palpites desta rodada foram encerrados de acordo com o horário limite configurado pelo administrador.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Round Status Banner */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-emerald-950/30 border border-emerald-500/20 rounded-3xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
@@ -377,15 +403,15 @@ export const PalpitesView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Match Teams & Prediction Controls */}
-              <div className="grid grid-cols-12 items-center gap-2 sm:gap-4">
-                {/* Home Team (No photos as requested) */}
-                <div className="col-span-4 sm:col-span-4 flex flex-col items-end justify-center text-right pr-1">
-                  <p className="text-xs sm:text-sm font-black text-white truncate max-w-full">
+              {/* Match Teams & Prediction Controls: Fixed 3-column layout so team names and inputs NEVER overlap */}
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 w-full">
+                {/* Home Team (Mandante) */}
+                <div className="min-w-0 flex flex-col items-end justify-center text-right pr-1 sm:pr-2">
+                  <p className="text-xs sm:text-sm font-black text-white truncate max-w-full" title={match.homeTeam}>
                     {match.homeTeam}
                   </p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-1.5 py-0.2 rounded font-mono">
+                  <div className="flex items-center justify-end gap-1 mt-0.5">
+                    <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950/70 border border-emerald-800/60 px-1.5 py-0.5 rounded font-mono shrink-0">
                       {match.homeTeamCode}
                     </span>
                     <span className="text-[10px] text-slate-400 uppercase font-semibold hidden xs:inline">
@@ -394,22 +420,22 @@ export const PalpitesView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Score / Inputs Center */}
-                <div className="col-span-4 sm:col-span-4 flex flex-col items-center justify-center">
+                {/* Score / Inputs Center (Independent width) */}
+                <div className="shrink-0 flex flex-col items-center justify-center bg-slate-950/90 px-2 sm:px-3.5 py-1.5 rounded-2xl border border-slate-800 shadow-inner">
                   {/* Actual Score Display if Finished/Live */}
                   {isMatchFinished || match.status === 'live' ? (
-                    <div className="mb-1.5 flex items-center gap-2 bg-slate-950 px-3 py-1 rounded-xl border border-slate-800">
-                      <span className="text-xs text-slate-400 font-semibold">Placar Oficial:</span>
-                      <span className="text-sm font-black text-emerald-400 font-mono">
+                    <div className="mb-1 flex items-center gap-1.5 bg-slate-900 px-2.5 py-0.5 rounded-xl border border-slate-700/80">
+                      <span className="text-[10px] text-slate-400 font-semibold">Oficial:</span>
+                      <span className="text-xs sm:text-sm font-black text-emerald-400 font-mono">
                         {match.homeScore} x {match.awayScore}
                       </span>
                     </div>
                   ) : null}
 
                   {/* User Prediction Inputs */}
-                  <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className="flex items-center gap-1 sm:gap-1.5">
                     {/* Home Score Stepper */}
-                    <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5">
+                    <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl p-0.5">
                       {!isLocked && (
                         <button
                           onClick={() => handleScoreChange(match.id, 'home', -1)}
@@ -424,7 +450,7 @@ export const PalpitesView: React.FC = () => {
                         value={pred.home !== null && pred.home !== undefined ? pred.home : ''}
                         placeholder="-"
                         onChange={e => handleDirectInput(match.id, 'home', e.target.value)}
-                        className="w-7 sm:w-8 text-center text-sm sm:text-base font-black text-emerald-300 bg-transparent focus:outline-none font-mono"
+                        className="w-6 sm:w-8 text-center text-sm sm:text-base font-black text-emerald-300 bg-transparent focus:outline-none font-mono"
                       />
                       {!isLocked && (
                         <button
@@ -436,10 +462,10 @@ export const PalpitesView: React.FC = () => {
                       )}
                     </div>
 
-                    <span className="text-slate-500 font-black text-xs">x</span>
+                    <span className="text-slate-500 font-black text-xs px-0.5">x</span>
 
                     {/* Away Score Stepper */}
-                    <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5">
+                    <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl p-0.5">
                       {!isLocked && (
                         <button
                           onClick={() => handleScoreChange(match.id, 'away', -1)}
@@ -454,7 +480,7 @@ export const PalpitesView: React.FC = () => {
                         value={pred.away !== null && pred.away !== undefined ? pred.away : ''}
                         placeholder="-"
                         onChange={e => handleDirectInput(match.id, 'away', e.target.value)}
-                        className="w-7 sm:w-8 text-center text-sm sm:text-base font-black text-emerald-300 bg-transparent focus:outline-none font-mono"
+                        className="w-6 sm:w-8 text-center text-sm sm:text-base font-black text-emerald-300 bg-transparent focus:outline-none font-mono"
                       />
                       {!isLocked && (
                         <button
@@ -467,18 +493,18 @@ export const PalpitesView: React.FC = () => {
                     </div>
                   </div>
 
-                  <span className="text-[10px] text-slate-400 mt-1 font-semibold">
-                    Seu Palpite
+                  <span className="text-[9px] sm:text-[10px] text-slate-400 mt-1 font-semibold">
+                    {isLocked ? 'Palpite Travado' : 'Seu Palpite'}
                   </span>
                 </div>
 
-                {/* Away Team (No photos as requested) */}
-                <div className="col-span-4 sm:col-span-4 flex flex-col items-start justify-center text-left pl-1">
-                  <p className="text-xs sm:text-sm font-black text-white truncate max-w-full">
+                {/* Away Team (Visitante) */}
+                <div className="min-w-0 flex flex-col items-start justify-center text-left pl-1 sm:pl-2">
+                  <p className="text-xs sm:text-sm font-black text-white truncate max-w-full" title={match.awayTeam}>
                     {match.awayTeam}
                   </p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <span className="text-[10px] font-extrabold text-teal-400 bg-teal-950/60 border border-teal-800/50 px-1.5 py-0.2 rounded font-mono">
+                  <div className="flex items-center justify-start gap-1 mt-0.5">
+                    <span className="text-[10px] font-extrabold text-teal-400 bg-teal-950/70 border border-teal-800/60 px-1.5 py-0.5 rounded font-mono shrink-0">
                       {match.awayTeamCode}
                     </span>
                     <span className="text-[10px] text-slate-400 uppercase font-semibold hidden xs:inline">
@@ -497,17 +523,31 @@ export const PalpitesView: React.FC = () => {
         <div className="text-xs text-center sm:text-left">
           <p className="font-bold text-white flex items-center gap-1.5 justify-center sm:justify-start">
             <Sparkles className="w-4 h-4 text-emerald-400" />
-            {isLocked ? 'Status do Palpite da Rodada:' : 'Finalize seus palpites da rodada:'}
+            {isBettingClosed 
+              ? 'Status da Rodada:'
+              : isLocked 
+              ? 'Status do Palpite da Rodada:' 
+              : 'Finalize seus palpites da rodada:'}
           </p>
           <p className="text-slate-400 text-[11px] mt-0.5">
-            {isLocked
+            {isBettingClosed
+              ? 'Os palpites desta rodada foram encerrados pelo horário limite.'
+              : isLocked
               ? 'Palpites travados. Pagamento via PIX e aprovação do ADM obrigatórios.'
               : 'Obrigatório palpitar nos 10 jogos. Após travar, realize o PIX de R$ 10,00.'}
           </p>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          {!isLocked ? (
+          {isBettingClosed ? (
+            <button
+              disabled
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-800 text-slate-400 font-bold text-xs sm:text-sm py-3 px-6 rounded-xl cursor-not-allowed border border-slate-700 opacity-80"
+            >
+              <Lock className="w-4 h-4 text-red-400" />
+              <span>Horário Limite Atingido (Palpites Fechados)</span>
+            </button>
+          ) : !isLocked ? (
             <button
               onClick={handleLockAndPay}
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm py-3 px-6 rounded-xl shadow-xl shadow-emerald-950/80 hover:scale-[1.02] active:scale-95 transition-all"

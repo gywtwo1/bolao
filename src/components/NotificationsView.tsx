@@ -136,9 +136,9 @@ export const NotificationsView: React.FC = () => {
             Nenhuma notificação encontrada nesta categoria.
           </div>
         ) : (
-          filteredNotifs.map(notif => (
+          filteredNotifs.map((notif, idx) => (
             <div
-              key={notif.id}
+              key={`${notif.id}-${idx}`}
               onClick={() => markNotificationAsRead(notif.id)}
               className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3.5 ${
                 notif.read
