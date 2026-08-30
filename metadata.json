@@ -1,0 +1,6 @@
+{
+  "name": "Bolão Brasileirão 2026",
+  "description": "Aplicativo de Bolão do Brasileirão 2026 com palpites de placar exato (3 pts) e resultado (1 pt), pagamento via PIX, ranking automático, notificações e painel administrativo.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

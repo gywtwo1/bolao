@@ -1,0 +1,546 @@
+import React, { useState, useRef } from 'react';
+import { useBolao } from '../context/BolaoContext';
+import { Match } from '../types';
+import { calculateMatchScore } from '../utils/scoring';
+import { formatCurrency } from '../utils/pix';
+import { 
+  Lock, 
+  CheckCircle2, 
+  Clock, 
+  AlertTriangle, 
+  Flame, 
+  ChevronLeft, 
+  ChevronRight, 
+  DollarSign, 
+  ShieldCheck, 
+  ArrowRight, 
+  Zap,
+  Sparkles,
+  HelpCircle,
+  Trophy
+} from 'lucide-react';
+import { PixPaymentModal } from './PixPaymentModal';
+
+export const PalpitesView: React.FC = () => {
+  const {
+    rounds,
+    selectedRoundId,
+    setSelectedRoundId,
+    activeRound,
+    activeBet,
+    currentUser,
+    getUserPredictionsForRound,
+    updatePrediction,
+    lockAndProceedToPayment
+  } = useBolao();
+
+  const [isPixModalOpen, setIsPixModalOpen] = useState(false);
+  const [missingAlert, setMissingAlert] = useState<string | null>(null);
+  const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
+
+  const predictions = getUserPredictionsForRound(selectedRoundId);
+
+  const isLocked = activeBet?.isLocked || (activeBet && activeBet.status !== 'draft');
+  const betStatus = activeBet?.status || 'draft';
+
+  // Count how many matches have been predicted
+  const matchesCount = activeRound?.matches.length || 10;
+  const filledCount = activeRound
+    ? activeRound.matches.filter(m => {
+        const p = predictions[m.id];
+        return p && p.home !== null && p.home !== undefined && p.away !== null && p.away !== undefined;
+      }).length
+    : 0;
+
+  const progressPercent = Math.round((filledCount / (matchesCount || 10)) * 100);
+
+  const handleScoreChange = (matchId: string, team: 'home' | 'away', delta: number) => {
+    if (isLocked) return;
+
+    const current = predictions[matchId] || { home: 0, away: 0 };
+    const currentVal = team === 'home' ? current.home ?? 0 : current.away ?? 0;
+    const newVal = Math.max(0, Math.min(15, currentVal + delta));
+
+    if (team === 'home') {
+      updatePrediction(selectedRoundId, matchId, newVal, current.away ?? 0);
+    } else {
+      updatePrediction(selectedRoundId, matchId, current.home ?? 0, newVal);
+    }
+    setHighlightedMatchId(null);
+    setMissingAlert(null);
+  };
+
+  const handleDirectInput = (matchId: string, team: 'home' | 'away', valStr: string) => {
+    if (isLocked) return;
+
+    const num = valStr === '' ? 0 : parseInt(valStr, 10);
+    if (isNaN(num) || num < 0 || num > 20) return;
+
+    const current = predictions[matchId] || { home: 0, away: 0 };
+    if (team === 'home') {
+      updatePrediction(selectedRoundId, matchId, num, current.away ?? 0);
+    } else {
+      updatePrediction(selectedRoundId, matchId, current.home ?? 0, num);
+    }
+    setHighlightedMatchId(null);
+    setMissingAlert(null);
+  };
+
+  /**
+   * Handle locking and proceeding to payment.
+   * If any match is missing, scrolls and jumps directly to that match.
+   */
+  const handleLockAndPay = () => {
+    const result = lockAndProceedToPayment(selectedRoundId);
+
+    if (!result.success) {
+      setMissingAlert(result.message || 'Complete todos os 10 palpites antes de continuar!');
+      if (result.missingMatchId) {
+        setHighlightedMatchId(result.missingMatchId);
+        const element = document.getElementById(`match-${result.missingMatchId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    } else {
+      setMissingAlert(null);
+      setHighlightedMatchId(null);
+      setIsPixModalOpen(true);
+    }
+  };
+
+  if (!activeRound) {
+    return (
+      <div className="p-8 text-center text-slate-400">
+        <p>Nenhuma rodada disponível no momento.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 pb-20 max-w-4xl mx-auto px-3 sm:px-4">
+      {/* Round Selector Bar */}
+      <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+        <div className="flex items-center gap-2 overflow-x-auto py-1 max-w-full">
+          {rounds.map(r => (
+            <button
+              key={r.id}
+              onClick={() => {
+                setSelectedRoundId(r.id);
+                setMissingAlert(null);
+                setHighlightedMatchId(null);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                selectedRoundId === r.id
+                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-950/50'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
+              <span>Rodada {r.number}</span>
+              {r.status === 'open' && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              )}
+              {r.status === 'finished' && (
+                <span className="text-[10px] opacity-80">Finalizada</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Round Meta info */}
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-1 text-slate-400">
+            <Clock className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Limite: 19/04 16:00</span>
+          </div>
+          <div className="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
+            <DollarSign className="w-3.5 h-3.5" />
+            <span>{formatCurrency(activeRound.price || 10.00)} / Aposta</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Round Status Banner */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-900/90 to-emerald-950/30 border border-emerald-500/20 rounded-3xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Brasileirão 2026
+              </span>
+              <span className="text-xs text-slate-400">• {activeRound.matches.length} Jogos Oficiais</span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-black text-white mt-1">
+              {activeRound.title}
+            </h2>
+            <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
+              Placar Exato = <strong className="text-emerald-400">3 Pontos</strong> • Acerto de Vencedor/Empate = <strong className="text-emerald-400">1 Ponto</strong>. Preencha todos os 10 jogos para liberar o pagamento via PIX.
+            </p>
+          </div>
+
+          {/* Pot and Status Card */}
+          <div className="flex items-center gap-3 bg-slate-950/80 border border-slate-800 p-3 rounded-2xl shrink-0">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                Prêmio Estimado
+              </span>
+              <p className="text-base sm:text-lg font-black text-amber-400">
+                {formatCurrency(activeRound.totalPot || 60.00)}
+              </p>
+            </div>
+            <div className="h-8 w-px bg-slate-800" />
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                Taxa de Entrada
+              </span>
+              <p className="text-sm font-extrabold text-white">
+                R$ 10,00 (PIX)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Progress & Missing Alert Area */}
+        <div className="mt-4 pt-3 border-t border-slate-800/80">
+          <div className="flex items-center justify-between text-xs mb-1.5">
+            <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+              <Flame className="w-4 h-4 text-emerald-400" />
+              Progresso dos Palpites:
+            </span>
+            <span className={`font-black ${filledCount === 10 ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {filledCount} de 10 jogos preenchidos ({progressPercent}%)
+            </span>
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div
+              className={`h-full transition-all duration-500 rounded-full ${
+                filledCount === 10
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-md shadow-emerald-500/50'
+                  : 'bg-gradient-to-r from-amber-500 to-emerald-500'
+              }`}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          {/* Missing Alert Warning */}
+          {missingAlert && (
+            <div className="mt-3 p-3 bg-amber-950/60 border border-amber-500/50 rounded-xl flex items-center justify-between gap-2 text-xs text-amber-200 animate-bounce">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="font-semibold">{missingAlert}</span>
+              </div>
+              <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded font-bold uppercase">
+                Atenção
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bet Status Card if Locked or Paid */}
+      {isLocked && (
+        <div className={`p-4 rounded-2xl border transition-all ${
+          betStatus === 'confirmed'
+            ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+            : betStatus === 'receipt_submitted'
+            ? 'bg-amber-950/40 border-amber-500/50 text-amber-200'
+            : betStatus === 'rejected'
+            ? 'bg-rose-950/40 border-rose-500/50 text-rose-200'
+            : 'bg-blue-950/40 border-blue-500/50 text-blue-200'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-slate-900/80 border border-slate-700 shrink-0 mt-0.5">
+                {betStatus === 'confirmed' ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                ) : betStatus === 'receipt_submitted' ? (
+                  <Clock className="w-5 h-5 text-amber-400" />
+                ) : betStatus === 'rejected' ? (
+                  <AlertTriangle className="w-5 h-5 text-rose-400" />
+                ) : (
+                  <Lock className="w-5 h-5 text-blue-400" />
+                )}
+              </div>
+              <div className="text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-sm text-white">
+                    {betStatus === 'confirmed' && '✅ Palpite Confirmado e Válido!'}
+                    {betStatus === 'receipt_submitted' && '⏳ Comprovante Enviado - Em Análise'}
+                    {betStatus === 'rejected' && '❌ Comprovante Rejeitado'}
+                    {betStatus === 'locked_pending_payment' && '🔒 Palpites Travados (Pendente PIX)'}
+                  </span>
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                    {betStatus}
+                  </span>
+                </div>
+                <p className="text-slate-300 mt-1">
+                  {betStatus === 'confirmed' && 'Seus 10 palpites foram validados pelo Administrador e já estão computando no ranking.'}
+                  {betStatus === 'receipt_submitted' && 'O Administrador está analisando seu comprovante PIX no painel para confirmar.'}
+                  {betStatus === 'rejected' && (activeBet?.adminNotes || 'Envie um comprovante legível para validar seus palpites.')}
+                  {betStatus === 'locked_pending_payment' && 'Você travou seus palpites! Pague R$ 10,00 via PIX e envie o comprovante para validar sua vaga.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Action for pending payment or rejected */}
+            {(betStatus === 'locked_pending_payment' || betStatus === 'rejected') && (
+              <button
+                onClick={() => setIsPixModalOpen(true)}
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl shrink-0 shadow-lg shadow-emerald-950 transition-all flex items-center justify-center gap-1.5"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Pagar PIX / Enviar Comprovante</span>
+              </button>
+            )}
+
+            {betStatus === 'receipt_submitted' && (
+              <button
+                onClick={() => setIsPixModalOpen(true)}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-3 py-1.5 rounded-xl shrink-0 border border-slate-700 transition-all"
+              >
+                Ver Comprovante
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 10 Match Cards Grid */}
+      <div className="space-y-3">
+        {activeRound.matches.map((match, index) => {
+          const pred = predictions[match.id] || { home: null, away: null };
+          const isFilled = pred.home !== null && pred.home !== undefined && pred.away !== null && pred.away !== undefined;
+          const isHighlighted = highlightedMatchId === match.id;
+          const isMatchFinished = match.status === 'finished';
+
+          // Score comparison if finished
+          const scoreEval = isMatchFinished && isFilled
+            ? calculateMatchScore(pred.home!, pred.away!, match.homeScore, match.awayScore)
+            : null;
+
+          return (
+            <div
+              key={match.id}
+              id={`match-${match.id}`}
+              className={`bg-slate-900/90 border rounded-2xl p-3.5 sm:p-4 transition-all duration-300 relative ${
+                isHighlighted
+                  ? 'border-amber-400 ring-2 ring-amber-400/50 bg-amber-950/20 shadow-xl shadow-amber-950/40 scale-[1.01]'
+                  : isFilled
+                  ? 'border-slate-800 hover:border-slate-700'
+                  : 'border-slate-800/80 bg-slate-900/40'
+              }`}
+            >
+              {/* Match Top Bar: Index, Date, Stadium */}
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pb-2.5 mb-2.5 border-b border-slate-800/60">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-slate-800 text-emerald-400 font-extrabold flex items-center justify-center text-[10px] border border-slate-700">
+                    {index + 1}
+                  </span>
+                  <span className="font-semibold text-slate-300">{match.date}</span>
+                  <span className="text-slate-500 hidden sm:inline">• {match.stadium}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {isMatchFinished ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                      Encerrado
+                    </span>
+                  ) : match.status === 'live' ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                      Ao Vivo {match.minute || '65\''}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400">
+                      {isFilled ? '✅ Palpitado' : '⚠️ Pendente'}
+                    </span>
+                  )}
+
+                  {/* Points Badge if finished */}
+                  {scoreEval && (
+                    <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg flex items-center gap-1 ${
+                      scoreEval.type === 'exact'
+                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/40'
+                        : scoreEval.type === 'outcome'
+                        ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/40'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {scoreEval.type === 'exact' && '🎯 +3 PTS (Placar Exato!)'}
+                      {scoreEval.type === 'outcome' && '⚡ +1 PT (Acertou Vencedor)'}
+                      {scoreEval.type === 'wrong' && '0 pts (Errou)'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Match Teams & Prediction Controls */}
+              <div className="grid grid-cols-12 items-center gap-2 sm:gap-4">
+                {/* Home Team */}
+                <div className="col-span-4 sm:col-span-4 flex items-center justify-end gap-2 text-right">
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm font-extrabold text-white truncate">
+                      {match.homeTeam}
+                    </p>
+                    <p className="text-[10px] text-slate-400 uppercase font-semibold">
+                      {match.homeTeamCode} (Mandante)
+                    </p>
+                  </div>
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center justify-center shrink-0 overflow-hidden shadow">
+                    <img
+                      src={match.homeTeamLogo}
+                      alt={match.homeTeam}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+
+                {/* Score / Inputs Center */}
+                <div className="col-span-4 sm:col-span-4 flex flex-col items-center justify-center">
+                  {/* Actual Score Display if Finished/Live */}
+                  {isMatchFinished || match.status === 'live' ? (
+                    <div className="mb-1.5 flex items-center gap-2 bg-slate-950 px-3 py-1 rounded-xl border border-slate-800">
+                      <span className="text-xs text-slate-400 font-semibold">Placar Oficial:</span>
+                      <span className="text-sm font-black text-emerald-400 font-mono">
+                        {match.homeScore} x {match.awayScore}
+                      </span>
+                    </div>
+                  ) : null}
+
+                  {/* User Prediction Inputs */}
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    {/* Home Score Stepper */}
+                    <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5">
+                      {!isLocked && (
+                        <button
+                          onClick={() => handleScoreChange(match.id, 'home', -1)}
+                          className="w-6 h-7 sm:w-7 sm:h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xs font-bold transition-colors"
+                        >
+                          -
+                        </button>
+                      )}
+                      <input
+                        type="number"
+                        disabled={isLocked}
+                        value={pred.home !== null && pred.home !== undefined ? pred.home : ''}
+                        placeholder="-"
+                        onChange={e => handleDirectInput(match.id, 'home', e.target.value)}
+                        className="w-7 sm:w-8 text-center text-sm sm:text-base font-black text-emerald-300 bg-transparent focus:outline-none font-mono"
+                      />
+                      {!isLocked && (
+                        <button
+                          onClick={() => handleScoreChange(match.id, 'home', 1)}
+                          className="w-6 h-7 sm:w-7 sm:h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xs font-bold transition-colors"
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
+
+                    <span className="text-slate-500 font-black text-xs">x</span>
+
+                    {/* Away Score Stepper */}
+                    <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5">
+                      {!isLocked && (
+                        <button
+                          onClick={() => handleScoreChange(match.id, 'away', -1)}
+                          className="w-6 h-7 sm:w-7 sm:h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xs font-bold transition-colors"
+                        >
+                          -
+                        </button>
+                      )}
+                      <input
+                        type="number"
+                        disabled={isLocked}
+                        value={pred.away !== null && pred.away !== undefined ? pred.away : ''}
+                        placeholder="-"
+                        onChange={e => handleDirectInput(match.id, 'away', e.target.value)}
+                        className="w-7 sm:w-8 text-center text-sm sm:text-base font-black text-emerald-300 bg-transparent focus:outline-none font-mono"
+                      />
+                      {!isLocked && (
+                        <button
+                          onClick={() => handleScoreChange(match.id, 'away', 1)}
+                          className="w-6 h-7 sm:w-7 sm:h-8 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xs font-bold transition-colors"
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] text-slate-400 mt-1 font-semibold">
+                    Seu Palpite
+                  </span>
+                </div>
+
+                {/* Away Team */}
+                <div className="col-span-4 sm:col-span-4 flex items-center justify-start gap-2 text-left">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center justify-center shrink-0 overflow-hidden shadow">
+                    <img
+                      src={match.awayTeamLogo}
+                      alt={match.awayTeam}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm font-extrabold text-white truncate">
+                      {match.awayTeam}
+                    </p>
+                    <p className="text-[10px] text-slate-400 uppercase font-semibold">
+                      {match.awayTeamCode} (Visitante)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Submission Action Bar */}
+      <div className="sticky bottom-16 sm:bottom-4 z-30 bg-slate-950/95 backdrop-blur-md border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="text-xs text-center sm:text-left">
+          <p className="font-bold text-white flex items-center gap-1.5 justify-center sm:justify-start">
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            {isLocked ? 'Status do Palpite da Rodada:' : 'Finalize seus palpites da rodada:'}
+          </p>
+          <p className="text-slate-400 text-[11px] mt-0.5">
+            {isLocked
+              ? 'Palpites travados. Pagamento via PIX e aprovação do ADM obrigatórios.'
+              : 'Obrigatório palpitar nos 10 jogos. Após travar, realize o PIX de R$ 10,00.'}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {!isLocked ? (
+            <button
+              onClick={handleLockAndPay}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm py-3 px-6 rounded-xl shadow-xl shadow-emerald-950/80 hover:scale-[1.02] active:scale-95 transition-all"
+            >
+              <Lock className="w-4 h-4" />
+              <span>Travar 10 Palpites & Pagar PIX (R$ 10,00)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsPixModalOpen(true)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs sm:text-sm py-2.5 px-5 rounded-xl shadow-lg transition-all"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Gerenciar Pagamento PIX / Comprovante</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Pix Payment Modal */}
+      <PixPaymentModal
+        isOpen={isPixModalOpen}
+        onClose={() => setIsPixModalOpen(false)}
+      />
+    </div>
+  );
+};
