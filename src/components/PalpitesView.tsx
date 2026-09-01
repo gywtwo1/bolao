@@ -17,7 +17,10 @@ import {
   Zap,
   Sparkles,
   HelpCircle,
-  Trophy
+  Trophy,
+  PlusCircle,
+  Trash2,
+  Ticket
 } from 'lucide-react';
 import { PixPaymentModal } from './PixPaymentModal';
 
@@ -26,9 +29,14 @@ export const PalpitesView: React.FC = () => {
     rounds,
     selectedRoundId,
     setSelectedRoundId,
+    selectedBetId,
+    setSelectedBetId,
     activeRound,
     activeBet,
+    userRoundBets,
     currentUser,
+    createNewBetForRound,
+    deleteDraftBet,
     getUserPredictionsForRound,
     updatePrediction,
     lockAndProceedToPayment
@@ -38,7 +46,7 @@ export const PalpitesView: React.FC = () => {
   const [missingAlert, setMissingAlert] = useState<string | null>(null);
   const [highlightedMatchId, setHighlightedMatchId] = useState<string | null>(null);
 
-  const predictions = getUserPredictionsForRound(selectedRoundId);
+  const predictions = getUserPredictionsForRound(selectedRoundId, activeBet?.id);
 
   // Check if round deadline expired or round is closed
   const roundClosedCheck = activeRound ? isRoundBettingClosed(activeRound) : { isClosed: false, reason: '' };
@@ -66,9 +74,9 @@ export const PalpitesView: React.FC = () => {
     const newVal = Math.max(0, Math.min(15, currentVal + delta));
 
     if (team === 'home') {
-      updatePrediction(selectedRoundId, matchId, newVal, current.away ?? 0);
+      updatePrediction(selectedRoundId, matchId, newVal, current.away ?? 0, activeBet?.id);
     } else {
-      updatePrediction(selectedRoundId, matchId, current.home ?? 0, newVal);
+      updatePrediction(selectedRoundId, matchId, current.home ?? 0, newVal, activeBet?.id);
     }
     setHighlightedMatchId(null);
     setMissingAlert(null);
@@ -82,20 +90,20 @@ export const PalpitesView: React.FC = () => {
 
     const current = predictions[matchId] || { home: 0, away: 0 };
     if (team === 'home') {
-      updatePrediction(selectedRoundId, matchId, num, current.away ?? 0);
+      updatePrediction(selectedRoundId, matchId, num, current.away ?? 0, activeBet?.id);
     } else {
-      updatePrediction(selectedRoundId, matchId, current.home ?? 0, num);
+      updatePrediction(selectedRoundId, matchId, current.home ?? 0, num, activeBet?.id);
     }
     setHighlightedMatchId(null);
     setMissingAlert(null);
   };
 
   /**
-   * Handle locking and proceeding to payment.
+   * Handle locking and proceeding to payment for current ticket.
    * If any match is missing, scrolls and jumps directly to that match.
    */
   const handleLockAndPay = () => {
-    const result = lockAndProceedToPayment(selectedRoundId);
+    const result = lockAndProceedToPayment(selectedRoundId, activeBet?.id);
 
     if (!result.success) {
       setMissingAlert(result.message || 'Complete todos os 10 palpites antes de continuar!');
@@ -110,6 +118,15 @@ export const PalpitesView: React.FC = () => {
       setMissingAlert(null);
       setHighlightedMatchId(null);
       setIsPixModalOpen(true);
+    }
+  };
+
+  const handleCreateAnotherBet = () => {
+    if (isBettingClosed) return;
+    const newBet = createNewBetForRound(selectedRoundId);
+    if (newBet) {
+      setMissingAlert(null);
+      setHighlightedMatchId(null);
     }
   };
 
@@ -131,6 +148,7 @@ export const PalpitesView: React.FC = () => {
               key={r.id}
               onClick={() => {
                 setSelectedRoundId(r.id);
+                setSelectedBetId(null);
                 setMissingAlert(null);
                 setHighlightedMatchId(null);
               }}
@@ -159,9 +177,69 @@ export const PalpitesView: React.FC = () => {
           </div>
           <div className="bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1">
             <DollarSign className="w-3.5 h-3.5" />
-            <span>{formatCurrency(activeRound.price || 10.00)} / Aposta</span>
+            <span>{formatCurrency(activeRound.price || 10.00)} / Palpite</span>
           </div>
         </div>
+      </div>
+
+      {/* Multi-Bet Ticket Selector Bar */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-center gap-2 overflow-x-auto py-1">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 shrink-0 mr-1">
+            <Ticket className="w-4 h-4 text-emerald-400" />
+            <span>Seus Bilhetes:</span>
+          </div>
+
+          {userRoundBets.length === 0 ? (
+            <span className="text-xs text-slate-400 italic">
+              Nenhum palpite iniciado nesta rodada.
+            </span>
+          ) : (
+            userRoundBets.map((b, idx) => {
+              const isSelected = (!selectedBetId && idx === 0) || selectedBetId === b.id;
+              return (
+                <button
+                  key={b.id}
+                  onClick={() => {
+                    setSelectedBetId(b.id);
+                    setMissingAlert(null);
+                    setHighlightedMatchId(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 border ${
+                    isSelected
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md'
+                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <span>{b.betLabel || `Palpite #${idx + 1}`}</span>
+                  <span className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-black ${
+                    b.status === 'confirmed'
+                      ? isSelected ? 'bg-slate-950 text-emerald-300' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : b.status === 'receipt_submitted'
+                      ? isSelected ? 'bg-slate-950 text-amber-300' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : b.status === 'locked_pending_payment'
+                      ? isSelected ? 'bg-slate-950 text-blue-300' : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      : isSelected ? 'bg-slate-950/40 text-slate-900' : 'bg-slate-800 text-slate-400'
+                  }`}>
+                    {b.status === 'confirmed' ? 'Confirmado' : b.status === 'receipt_submitted' ? 'Em Análise' : b.status === 'locked_pending_payment' ? 'Aguardando PIX' : 'Rascunho'}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        {/* Action: Create another bet button */}
+        {!isBettingClosed && (
+          <button
+            onClick={handleCreateAnotherBet}
+            className="flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-md transition-all shrink-0 active:scale-95"
+            title="Você pode fazer quantos palpites quiser! Cada bilhete concorre individualmente pelo prêmio da rodada."
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>+ Fazer Outro Palpite (R$ 10,00)</span>
+          </button>
+        )}
       </div>
 
       {/* Warning Banner if Betting is Closed (Deadline Passed) */}
@@ -197,12 +275,17 @@ export const PalpitesView: React.FC = () => {
                 Brasileirão 2026
               </span>
               <span className="text-xs text-slate-400">• {activeRound.matches.length} Jogos Oficiais</span>
+              {activeBet && (
+                <span className="text-xs font-bold text-amber-400 bg-amber-950/60 border border-amber-500/40 px-2 py-0.5 rounded-full">
+                  Editando: {activeBet.betLabel || 'Palpite #1'}
+                </span>
+              )}
             </div>
             <h2 className="text-lg sm:text-xl font-black text-white mt-1">
               {activeRound.title}
             </h2>
             <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
-              Placar Exato = <strong className="text-emerald-400">3 Pontos</strong> • Acerto de Vencedor/Empate = <strong className="text-emerald-400">1 Ponto</strong>. Preencha todos os 10 jogos para liberar o pagamento via PIX.
+              Placar Exato = <strong className="text-emerald-400">3 Pontos</strong> • Acerto de Vencedor/Empate = <strong className="text-emerald-400">1 Ponto</strong>. Preencha todos os 10 jogos para travar e pagar a taxa de R$ 10,00 via PIX.
             </p>
           </div>
 
@@ -210,7 +293,7 @@ export const PalpitesView: React.FC = () => {
           <div className="flex items-center gap-3 bg-slate-950/80 border border-slate-800 p-3 rounded-2xl shrink-0">
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                Prêmio Estimado
+                Prêmio da Rodada
               </span>
               <p className="text-base sm:text-lg font-black text-amber-400">
                 {formatCurrency(activeRound.totalPot || 60.00)}
@@ -233,7 +316,7 @@ export const PalpitesView: React.FC = () => {
           <div className="flex items-center justify-between text-xs mb-1.5">
             <span className="font-semibold text-slate-300 flex items-center gap-1.5">
               <Flame className="w-4 h-4 text-emerald-400" />
-              Progresso dos Palpites:
+              Progresso do {activeBet?.betLabel || 'Bilhete'}:
             </span>
             <span className={`font-black ${filledCount === 10 ? 'text-emerald-400' : 'text-amber-400'}`}>
               {filledCount} de 10 jogos preenchidos ({progressPercent}%)
@@ -294,43 +377,55 @@ export const PalpitesView: React.FC = () => {
               <div className="text-xs">
                 <div className="flex items-center gap-2">
                   <span className="font-black text-sm text-white">
-                    {betStatus === 'confirmed' && '✅ Palpite Confirmado e Válido!'}
-                    {betStatus === 'receipt_submitted' && '⏳ Comprovante Enviado - Em Análise'}
-                    {betStatus === 'rejected' && '❌ Comprovante Rejeitado'}
-                    {betStatus === 'locked_pending_payment' && '🔒 Palpites Travados (Pendente PIX)'}
+                    {betStatus === 'confirmed' && `✅ ${activeBet?.betLabel || 'Palpite'} Confirmado e Válido!`}
+                    {betStatus === 'receipt_submitted' && `⏳ ${activeBet?.betLabel || 'Palpite'} - Comprovante em Análise`}
+                    {betStatus === 'rejected' && `❌ ${activeBet?.betLabel || 'Palpite'} - Comprovante Rejeitado`}
+                    {betStatus === 'locked_pending_payment' && `🔒 ${activeBet?.betLabel || 'Palpite'} Travado (Pendente PIX)`}
                   </span>
                   <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
                     {betStatus}
                   </span>
                 </div>
                 <p className="text-slate-300 mt-1">
-                  {betStatus === 'confirmed' && 'Seus 10 palpites foram validados pelo Administrador e já estão computando no ranking.'}
-                  {betStatus === 'receipt_submitted' && 'O Administrador está analisando seu comprovante PIX no painel para confirmar.'}
+                  {betStatus === 'confirmed' && 'Seus 10 palpites foram validados pelo Administrador e já estão computando no ranking. Você pode criar novos palpites adicionais quando quiser!'}
+                  {betStatus === 'receipt_submitted' && 'O Administrador está analisando seu comprovante PIX no painel para confirmar sua participação.'}
                   {betStatus === 'rejected' && (activeBet?.adminNotes || 'Envie um comprovante legível para validar seus palpites.')}
-                  {betStatus === 'locked_pending_payment' && 'Você travou seus palpites! Pague R$ 10,00 via PIX e envie o comprovante para validar sua vaga.'}
+                  {betStatus === 'locked_pending_payment' && 'Você travou seus 10 palpites! Pague R$ 10,00 via PIX e envie o comprovante para validar sua vaga.'}
                 </p>
               </div>
             </div>
 
-            {/* Action for pending payment or rejected */}
-            {(betStatus === 'locked_pending_payment' || betStatus === 'rejected') && (
-              <button
-                onClick={() => setIsPixModalOpen(true)}
-                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl shrink-0 shadow-lg shadow-emerald-950 transition-all flex items-center justify-center gap-1.5"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Pagar PIX / Enviar Comprovante</span>
-              </button>
-            )}
+            {/* Actions for pending payment, rejected or making another bet */}
+            <div className="flex items-center gap-2">
+              {(betStatus === 'locked_pending_payment' || betStatus === 'rejected') && (
+                <button
+                  onClick={() => setIsPixModalOpen(true)}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl shrink-0 shadow-lg shadow-emerald-950 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Pagar PIX / Enviar Comprovante</span>
+                </button>
+              )}
 
-            {betStatus === 'receipt_submitted' && (
-              <button
-                onClick={() => setIsPixModalOpen(true)}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-3 py-1.5 rounded-xl shrink-0 border border-slate-700 transition-all"
-              >
-                Ver Comprovante
-              </button>
-            )}
+              {betStatus === 'receipt_submitted' && (
+                <button
+                  onClick={() => setIsPixModalOpen(true)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs px-3 py-1.5 rounded-xl shrink-0 border border-slate-700 transition-all"
+                >
+                  Ver Comprovante
+                </button>
+              )}
+
+              {!isBettingClosed && (betStatus === 'confirmed' || betStatus === 'receipt_submitted') && (
+                <button
+                  onClick={handleCreateAnotherBet}
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>Novo Palpite</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -572,6 +667,7 @@ export const PalpitesView: React.FC = () => {
       <PixPaymentModal
         isOpen={isPixModalOpen}
         onClose={() => setIsPixModalOpen(false)}
+        betId={activeBet?.id}
       />
     </div>
   );

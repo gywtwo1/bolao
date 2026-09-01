@@ -85,8 +85,11 @@ export const HistoryView: React.FC = () => {
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-base font-black text-white">
-                          {round?.title || `Rodada ${bet.roundId}`}
+                        <h3 className="text-base font-black text-white flex items-center gap-2">
+                          <span>{round?.title || `Rodada ${bet.roundId}`}</span>
+                          <span className="text-xs font-bold text-amber-400 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-lg">
+                            {bet.betLabel || `Palpite #${bet.betNumber || 1}`}
+                          </span>
                         </h3>
                         <span
                           className={`text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full border ${

@@ -6,9 +6,10 @@ import { User, LogIn, UserPlus, X, ShieldCheck, Sparkles, Check, Eye, EyeOff } f
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onAdminLogin?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLogin }) => {
   const { login, register, users, switchUser } = useBolao();
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
@@ -32,6 +33,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setLoginError('');
     const res = login(loginEmail, loginPass);
     if (res.success) {
+      if (res.isAdmin) {
+        onAdminLogin?.();
+      }
       onClose();
     } else {
       setLoginError(res.message || 'Erro ao entrar. Verifique os dados informados.');
@@ -155,6 +159,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               >
                 Entrar no Bolão
               </button>
+
+              {/* Quick Admin Access Card */}
+              <div className="p-3 bg-amber-950/30 border border-amber-500/40 rounded-2xl flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-left">
+                  <div className="p-1.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-amber-300 block">Conta de Administrador</span>
+                    <span className="text-[10px] text-slate-400">Login: <code className="text-amber-200">admin</code> • Senha: <code className="text-amber-200">228891</code></span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = login('admin', '228891');
+                    if (res.success) {
+                      onAdminLogin?.();
+                      onClose();
+                    }
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shrink-0 shadow transition-all"
+                >
+                  Entrar como ADM
+                </button>
+              </div>
 
               {/* Demo Accounts List for quick preview (users only) */}
               <div className="pt-3 border-t border-slate-800 space-y-2">

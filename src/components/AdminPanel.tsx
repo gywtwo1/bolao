@@ -35,7 +35,17 @@ import {
   ChevronDown,
   ChevronUp,
   Layers,
-  ArrowRight
+  ArrowRight,
+  MessageCircle,
+  Phone,
+  Mail,
+  Send,
+  Radio,
+  UserCheck,
+  MessageSquare,
+  ExternalLink,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -48,6 +58,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
     rounds,
     bets,
     teams,
+    users,
     selectedRoundId,
     isAdmin,
     login,
@@ -62,7 +73,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
     adminAddTeam,
     adminDeleteTeam,
     adminUpdateTeam,
-    adminUpdateRoundDeadline
+    adminUpdateRoundDeadline,
+    adminSendNotification,
+    adminUpdateUser
   } = useBolao();
 
   // Admin Login State for Protected Gate
@@ -72,11 +85,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
   const [gateError, setGateError] = useState('');
 
   // Admin Tab & Modals State
-  const [adminTab, setAdminTab] = useState<'comprovantes' | 'rodadas' | 'placares' | 'times'>('comprovantes');
+  const [adminTab, setAdminTab] = useState<'comprovantes' | 'usuarios' | 'rodadas' | 'placares' | 'times'>('comprovantes');
   const [rejectReason, setRejectReason] = useState<{ [betId: string]: string }>({});
   const [selectedReceiptPreview, setSelectedReceiptPreview] = useState<string | null>(null);
   const [isSyncingApi, setIsSyncingApi] = useState(false);
   const [activeAdminRoundId, setActiveAdminRoundId] = useState<number>(selectedRoundId);
+
+  // Online Users & Contacts State
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userFilter, setUserFilter] = useState<'all' | 'online' | 'with_bets' | 'pending_pix'>('all');
+  const [selectedUserForMsg, setSelectedUserForMsg] = useState<any | null>(null);
+  const [directMsgTitle, setDirectMsgTitle] = useState('');
+  const [directMsgText, setDirectMsgText] = useState('');
+  const [directMsgType, setDirectMsgType] = useState<'system' | 'payment_confirmed' | 'payment_rejected' | 'round_open' | 'results_ready'>('system');
+  const [copiedPixKey, setCopiedPixKey] = useState<string | null>(null);
 
   // In-App Confirmation Modals
   const [roundToDelete, setRoundToDelete] = useState<Round | null>(null);
@@ -471,10 +493,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
         </div>
 
         {/* Sub-tabs */}
-        <div className="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           <button
             onClick={() => setAdminTab('comprovantes')}
-            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 px-2 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               adminTab === 'comprovantes'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/60'
                 : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800'
@@ -492,20 +514,40 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
           </button>
 
           <button
+            onClick={() => setAdminTab('usuarios')}
+            className={`py-2.5 px-2 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              adminTab === 'usuarios'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/60'
+                : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            <div className="relative">
+              <Users className="w-4 h-4" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            </div>
+            <span>Contatos & Online</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+              adminTab === 'usuarios' ? 'bg-slate-950 text-emerald-400' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+            }`}>
+              {users.filter(u => u.isOnline && u.role !== 'admin').length} online
+            </span>
+          </button>
+
+          <button
             onClick={() => setAdminTab('rodadas')}
-            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 px-2 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               adminTab === 'rodadas'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/60'
                 : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800'
             }`}
           >
             <PlusCircle className="w-4 h-4" />
-            <span>Criar / Gerenciar Rodadas</span>
+            <span>Rodadas Brasileirão</span>
           </button>
 
           <button
             onClick={() => setAdminTab('placares')}
-            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 px-2 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               adminTab === 'placares'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/60'
                 : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800'
@@ -517,13 +559,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
 
           <button
             onClick={() => setAdminTab('times')}
-            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 px-2 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               adminTab === 'times'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-950/60'
                 : 'bg-slate-950/80 text-slate-300 hover:bg-slate-800'
             }`}
           >
-            <Users className="w-4 h-4" />
+            <ShieldCheck className="w-4 h-4" />
             <span>Times ({teams.length})</span>
           </button>
         </div>
@@ -562,6 +604,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
               {pendingReceiptBets.map(bet => {
                 const betRound = rounds.find(r => r.id === bet.roundId);
                 const predictionsCount = Object.keys(bet.predictions).length;
+                const betUser = users.find(u => u.id === bet.userId || u.email === bet.userEmail);
+                const cleanPhone = (betUser?.phone || '').replace(/\D/g, '');
+                const waMessage = encodeURIComponent(`Olá ${bet.userName}, tudo bem? Aqui é do Bolão Brasileirão 2026 sobre seu comprovante PIX do ${bet.betLabel || 'Palpite'} da ${betRound?.title || 'Rodada'}!`);
 
                 return (
                   <div
@@ -571,20 +616,34 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                     {/* User & Bet Info Bar */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={bet.userAvatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=user'}
-                          alt={bet.userName}
-                          className="w-12 h-12 rounded-2xl object-cover border border-slate-700 bg-slate-800"
-                        />
+                        <div className="relative">
+                          <img
+                            src={bet.userAvatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=user'}
+                            alt={bet.userName}
+                            className="w-12 h-12 rounded-2xl object-cover border border-slate-700 bg-slate-800"
+                          />
+                          {betUser?.isOnline && (
+                            <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-400 border-2 border-slate-900 rounded-full" title="Online Agora" />
+                          )}
+                        </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="text-base font-black text-white">{bet.userName}</h4>
+                            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                              {bet.betLabel || `Palpite #${bet.betNumber || 1}`}
+                            </span>
                             <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
                               Pendente ADM
                             </span>
+                            {betUser?.isOnline && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Online Agora
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-slate-400">
-                            {bet.userEmail} • {betRound?.title || `Rodada ${bet.roundId}`} • Taxa: <strong className="text-emerald-400">R$ 10,00</strong>
+                            {bet.userEmail} {betUser?.phone && `• ${betUser.phone}`} • {betRound?.title || `Rodada ${bet.roundId}`} • Taxa: <strong className="text-emerald-400">R$ 10,00</strong>
                           </p>
                           <p className="text-[11px] text-slate-400 mt-0.5">
                             Enviado em {new Date(bet.receiptUploadedAt || bet.createdAt).toLocaleString('pt-BR')} • {predictionsCount} palpites registrados
@@ -592,14 +651,43 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                         </div>
                       </div>
 
-                      {/* View Predictions Summary */}
-                      <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 text-xs">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
-                          10 Palpites Travados:
-                        </span>
-                        <span className="font-mono text-emerald-400 font-bold">
-                          {predictionsCount} de 10 jogos preenchidos
-                        </span>
+                      {/* Direct Contact Buttons */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {cleanPhone && (
+                          <a
+                            href={`https://wa.me/55${cleanPhone}?text=${waMessage}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                            title="Conversar no WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            <span>WhatsApp</span>
+                          </a>
+                        )}
+                        {betUser?.phone && (
+                          <a
+                            href={`tel:${betUser.phone}`}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-colors"
+                            title="Ligar para o usuário"
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (betUser) {
+                              setSelectedUserForMsg(betUser);
+                              setDirectMsgTitle('Comprovante PIX');
+                              setDirectMsgText(`Olá ${bet.userName}, recebemos o comprovante do seu ${bet.betLabel || 'palpite'} da ${betRound?.title || 'rodada'}.`);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-xl text-xs font-bold transition-colors"
+                          title="Enviar Notificação Push Direta"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Notificar</span>
+                        </button>
                       </div>
                     </div>
 
@@ -708,6 +796,441 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB: USUÁRIOS & CONTATOS ONLINE */}
+      {/* ======================================================== */}
+      {adminTab === 'usuarios' && (
+        <div className="space-y-5">
+          {/* Top Metrics Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400">Total Usuários</span>
+                <Users className="w-4 h-4 text-sky-400" />
+              </div>
+              <p className="text-xl font-black text-white">{users.length}</p>
+              <p className="text-[10px] text-slate-500">Cadastrados no bolão</p>
+            </div>
+
+            <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-emerald-300">Online Agora</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <p className="text-xl font-black text-emerald-400">
+                {users.filter(u => u.isOnline).length}
+              </p>
+              <p className="text-[10px] text-emerald-400/80">Conectados em tempo real</p>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400">Na Rodada Ativa</span>
+                <Trophy className="w-4 h-4 text-amber-400" />
+              </div>
+              <p className="text-xl font-black text-amber-400">
+                {new Set(bets.filter(b => b.roundId === selectedRoundId).map(b => b.userId)).size}
+              </p>
+              <p className="text-[10px] text-slate-500">Apostadores únicos</p>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400">PIX Pendentes</span>
+                <FileText className="w-4 h-4 text-rose-400" />
+              </div>
+              <p className="text-xl font-black text-rose-400">{pendingReceiptBets.length}</p>
+              <p className="text-[10px] text-slate-500">Aguardando aprovação</p>
+            </div>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5 text-emerald-400" />
+                  Contatos e Status dos Usuários
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Fale com os apostadores via WhatsApp, telefone ou envie notificações diretas no app.
+                </p>
+              </div>
+
+              {/* Quick Broadcast Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedUserForMsg({
+                    id: 'broadcast-all',
+                    name: 'Todos os Usuários (Transmissão Geral)',
+                    email: 'todos@bolao',
+                    role: 'user',
+                    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=broadcast',
+                    favoriteTeam: 'Todos',
+                    pixKey: '',
+                    phone: '',
+                    createdAt: '',
+                    totalPoints: 0,
+                    totalExactHits: 0,
+                    totalOutcomeHits: 0,
+                    roundsParticipated: 0
+                  });
+                  setDirectMsgTitle('📢 Comunicado da Administração');
+                  setDirectMsgText('Atenção apostadores: A rodada atual está aberta e os jogos começam em breve!');
+                  setDirectMsgType('system');
+                }}
+                className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-1.5 transition-all shrink-0"
+              >
+                <Radio className="w-4 h-4 animate-pulse" />
+                <span>Notificar Todos os Usuários</span>
+              </button>
+            </div>
+
+            {/* Search Input and Filter Chips */}
+            <div className="flex flex-col md:flex-row items-center gap-2.5 pt-2">
+              <div className="relative w-full md:flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nome, e-mail, telefone, time ou cidade..."
+                  value={userSearchQuery}
+                  onChange={e => setUserSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 text-xs text-white pl-9 pr-4 py-2.5 rounded-xl focus:border-amber-400 focus:outline-none"
+                />
+                {userSearchQuery && (
+                  <button
+                    onClick={() => setUserSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+                <button
+                  type="button"
+                  onClick={() => setUserFilter('all')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
+                    userFilter === 'all'
+                      ? 'bg-amber-500 text-slate-950 font-black'
+                      : 'bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                  }`}
+                >
+                  Todos ({users.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserFilter('online')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                    userFilter === 'online'
+                      ? 'bg-emerald-500 text-slate-950 font-black'
+                      : 'bg-slate-950 text-emerald-400 hover:bg-slate-800 border border-emerald-500/30'
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Online ({users.filter(u => u.isOnline).length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserFilter('with_bets')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
+                    userFilter === 'with_bets'
+                      ? 'bg-sky-500 text-slate-950 font-black'
+                      : 'bg-slate-950 text-sky-400 hover:bg-slate-800 border border-sky-500/30'
+                  }`}
+                >
+                  Com Palpites ({new Set(bets.map(b => b.userId)).size})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserFilter('pending_pix')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors whitespace-nowrap ${
+                    userFilter === 'pending_pix'
+                      ? 'bg-rose-500 text-white font-black'
+                      : 'bg-slate-950 text-rose-400 hover:bg-slate-800 border border-rose-500/30'
+                  }`}
+                >
+                  PIX Pendente ({pendingReceiptBets.length})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* User Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {users
+              .filter(user => {
+                const query = userSearchQuery.toLowerCase();
+                const matchesQuery =
+                  user.name.toLowerCase().includes(query) ||
+                  user.email.toLowerCase().includes(query) ||
+                  (user.phone && user.phone.includes(query)) ||
+                  (user.favoriteTeam && user.favoriteTeam.toLowerCase().includes(query)) ||
+                  (user.city && user.city.toLowerCase().includes(query));
+
+                if (!matchesQuery) return false;
+
+                if (userFilter === 'online') return !!user.isOnline;
+                if (userFilter === 'with_bets') return bets.some(b => b.userId === user.id);
+                if (userFilter === 'pending_pix') return bets.some(b => b.userId === user.id && b.status === 'pending_receipt');
+
+                return true;
+              })
+              .map(user => {
+                const isOnline = user.isOnline ?? (user.role === 'admin' || user.id === 'user-1' || user.id === 'user-2' || user.id === 'user-3');
+                const cleanPhone = (user.phone || '').replace(/\D/g, '');
+                const userBets = bets.filter(b => b.userId === user.id);
+                const userBetsInActiveRound = bets.filter(b => b.userId === user.id && b.roundId === selectedRoundId);
+                const hasPendingReceipt = userBets.some(b => b.status === 'pending_receipt');
+                const hasConfirmedBet = userBets.some(b => b.status === 'confirmed');
+
+                const waMessage = encodeURIComponent(
+                  `Olá ${user.name}, tudo bem? Aqui é o Administrador do Bolão Brasileirão 2026! Gostaria de falar sobre sua conta e palpites.`
+                );
+
+                return (
+                  <div
+                    key={user.id}
+                    className={`bg-slate-900 border rounded-3xl p-4 sm:p-5 shadow-xl flex flex-col justify-between gap-4 transition-all ${
+                      isOnline
+                        ? 'border-emerald-500/40 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/20'
+                        : 'border-slate-800'
+                    }`}
+                  >
+                    {/* User Top Info */}
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="relative shrink-0">
+                            <img
+                              src={user.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=user'}
+                              alt={user.name}
+                              className="w-13 h-13 rounded-2xl object-cover border border-slate-700 bg-slate-800"
+                            />
+                            <span
+                              className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-slate-900 ${
+                                isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'
+                              }`}
+                              title={isOnline ? 'Usuário Online Agora' : 'Offline'}
+                            />
+                          </div>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="text-base font-black text-white truncate">
+                                {user.name}
+                              </h4>
+                              {user.role === 'admin' ? (
+                                <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px] border border-purple-500/30">
+                                  Administrador
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[10px] border border-slate-700">
+                                  Apostador
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-xs text-slate-400 truncate mt-0.5">
+                              {user.email}
+                            </p>
+
+                            <div className="flex items-center gap-2 mt-1 flex-wrap text-[11px]">
+                              {isOnline ? (
+                                <span className="flex items-center gap-1 font-bold text-emerald-400">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                  Online agora
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">
+                                  Visto: {user.lastActive || 'Recente'}
+                                </span>
+                              )}
+                              {(user.city || user.state) && (
+                                <span className="text-slate-400">
+                                  • {user.city ? `${user.city}` : ''}{user.state ? ` (${user.state})` : ''}
+                                </span>
+                              )}
+                              {user.favoriteTeam && (
+                                <span className="text-amber-400 font-semibold">
+                                  • ⚽ {user.favoriteTeam}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Admin Toggle Online Status Simulation */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            adminUpdateUser(user.id, { isOnline: !isOnline, lastActive: !isOnline ? 'Online agora' : 'Há instantes' });
+                          }}
+                          className={`text-[10px] px-2 py-1 rounded-lg border font-bold transition-colors ${
+                            isOnline
+                              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                              : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                          }`}
+                          title="Clique para alternar o status online para testes"
+                        >
+                          {isOnline ? '🟢 Online' : '⚪ Offline'}
+                        </button>
+                      </div>
+
+                      {/* Contact Badges & PIX Details */}
+                      <div className="bg-slate-950/80 p-3 rounded-2xl border border-slate-800/80 space-y-2 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                              Telefone / WhatsApp
+                            </span>
+                            <span className="font-mono text-white font-bold">
+                              {user.phone || 'Não informado'}
+                            </span>
+                          </div>
+
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                              Chave PIX Cadastrada
+                            </span>
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-mono text-amber-300 truncate font-semibold">
+                                {user.pixKey || 'Não cadastrada'}
+                              </span>
+                              {user.pixKey && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(user.pixKey || '');
+                                    setCopiedPixKey(user.id);
+                                    setTimeout(() => setCopiedPixKey(null), 2500);
+                                  }}
+                                  className="text-[10px] px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded border border-slate-700 flex items-center gap-1 shrink-0"
+                                  title="Copiar Chave PIX"
+                                >
+                                  {copiedPixKey === user.id ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                      <span className="text-emerald-400">Copiado</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3 h-3 text-slate-400" />
+                                      <span>Copiar</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Tournament & Round Summary */}
+                        <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between flex-wrap gap-2 text-[11px]">
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-400">Pontuação Total:</span>
+                            <span className="font-black text-emerald-400 font-mono text-xs">
+                              {user.totalPoints} pts
+                            </span>
+                            <span className="text-slate-500">|</span>
+                            <span className="text-slate-400">Cravadas:</span>
+                            <span className="font-bold text-amber-400 font-mono">
+                              {user.totalExactHits}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400">Na Rodada Atual:</span>
+                            <span className="font-bold text-white">
+                              {userBetsInActiveRound.length} {userBetsInActiveRound.length === 1 ? 'palpite' : 'palpites'}
+                            </span>
+                            {hasPendingReceipt && (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px] border border-amber-500/30">
+                                PIX Pendente
+                              </span>
+                            )}
+                            {hasConfirmedBet && (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                                Confirmado
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions Bar: WhatsApp, Phone, Email, Direct Push Message */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-slate-800/80">
+                      {cleanPhone ? (
+                        <a
+                          href={`https://wa.me/55${cleanPhone}?text=${waMessage}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          <span>WhatsApp</span>
+                        </a>
+                      ) : (
+                        <button
+                          disabled
+                          className="py-2.5 px-3 bg-slate-800/50 text-slate-600 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          <span>Sem Zap</span>
+                        </button>
+                      )}
+
+                      {user.phone ? (
+                        <a
+                          href={`tel:${user.phone}`}
+                          className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                        >
+                          <Phone className="w-4 h-4 text-sky-400" />
+                          <span>Ligar</span>
+                        </a>
+                      ) : (
+                        <button
+                          disabled
+                          className="py-2.5 px-3 bg-slate-800/50 text-slate-600 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed"
+                        >
+                          <Phone className="w-4 h-4" />
+                          <span>Sem Tel</span>
+                        </button>
+                      )}
+
+                      <a
+                        href={`mailto:${user.email}?subject=Bolão%20Brasileirão%202026`}
+                        className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Mail className="w-4 h-4 text-amber-400" />
+                        <span>E-mail</span>
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedUserForMsg(user);
+                          setDirectMsgTitle('Mensagem da Administração');
+                          setDirectMsgText(`Olá ${user.name}, tudo bem?`);
+                          setDirectMsgType('system');
+                        }}
+                        className="py-2.5 px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Send className="w-4 h-4" />
+                        <span>Notificar</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
@@ -2047,6 +2570,158 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 border border-emerald-300">
           <CheckCircle2 className="w-4 h-4" />
           <span>{successToast}</span>
+        </div>
+      )}
+
+      {/* Direct Push Message Modal */}
+      {selectedUserForMsg && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setSelectedUserForMsg(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="bg-slate-900 border border-amber-500/40 rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <Send className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">
+                    Enviar Notificação no App
+                  </h3>
+                  <p className="text-[11px] text-slate-400 truncate max-w-[220px]">
+                    Destino: <strong className="text-amber-300">{selectedUserForMsg.name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUserForMsg(null)}
+                className="text-slate-400 hover:text-white text-xs p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Quick Templates */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-400 block">
+                Modelos Rápidos de Mensagem:
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDirectMsgTitle('✅ Comprovante PIX Aprovado!');
+                    setDirectMsgText(`Olá ${selectedUserForMsg.name}, seu comprovante de pagamento foi validado com sucesso. Seus palpites estão confirmados no ranking!`);
+                    setDirectMsgType('payment_confirmed');
+                  }}
+                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[10px] font-bold text-emerald-400 transition-colors"
+                >
+                  PIX Aprovado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDirectMsgTitle('⚠️ Comprovante com Problema');
+                    setDirectMsgText(`Olá ${selectedUserForMsg.name}, por favor reenvie o comprovante PIX legível ou com o valor exato de R$ 10,00.`);
+                    setDirectMsgType('payment_rejected');
+                  }}
+                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[10px] font-bold text-rose-400 transition-colors"
+                >
+                  PIX Recusado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDirectMsgTitle('⏰ Lembrete: Rodada Fechando!');
+                    setDirectMsgText(`Não se esqueça de salvar seus palpites e enviar o comprovante antes do fechamento da rodada!`);
+                    setDirectMsgType('round_open');
+                  }}
+                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[10px] font-bold text-amber-300 transition-colors"
+                >
+                  Lembrete Prazo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDirectMsgTitle('🏆 Parabéns pela Pontuação!');
+                    setDirectMsgText(`Excelente desempenho na rodada do Brasileirão 2026! Confira sua nova posição no ranking geral.`);
+                    setDirectMsgType('results_ready');
+                  }}
+                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[10px] font-bold text-sky-400 transition-colors"
+                >
+                  Parabéns Ranking
+                </button>
+              </div>
+            </div>
+
+            {/* Title & Message inputs */}
+            <div className="space-y-2.5 text-xs">
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                  Título da Notificação:
+                </label>
+                <input
+                  type="text"
+                  value={directMsgTitle}
+                  onChange={e => setDirectMsgTitle(e.target.value)}
+                  placeholder="Ex: Aviso da Administração"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                  Mensagem / Notificação Push:
+                </label>
+                <textarea
+                  rows={3}
+                  value={directMsgText}
+                  onChange={e => setDirectMsgText(e.target.value)}
+                  placeholder="Digite a mensagem que o apostador receberá no sino de notificações..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-amber-400 focus:outline-none resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setSelectedUserForMsg(null)}
+                className="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!directMsgTitle || !directMsgText) {
+                    alert('Por favor, preencha o título e a mensagem!');
+                    return;
+                  }
+                  adminSendNotification({
+                    userId: selectedUserForMsg.id === 'broadcast-all' ? undefined : selectedUserForMsg.id,
+                    title: directMsgTitle,
+                    message: directMsgText,
+                    type: directMsgType
+                  });
+                  setSelectedUserForMsg(null);
+                  setSuccessToast(`Notificação enviada com sucesso para ${selectedUserForMsg.name}!`);
+                  setTimeout(() => setSuccessToast(null), 4000);
+                }}
+                className="py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-950 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Send className="w-4 h-4" />
+                <span>Enviar Agora</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -11,7 +11,8 @@ import {
   ChevronDown, 
   LogOut, 
   Sparkles,
-  DollarSign
+  DollarSign,
+  Download
 } from 'lucide-react';
 import { formatCurrency } from '../utils/pix';
 
@@ -20,6 +21,7 @@ interface NavbarProps {
   setIsPhoneFrame: (val: boolean) => void;
   openRules: () => void;
   openAuth: () => void;
+  openInstallApp?: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
 }
@@ -29,6 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setIsPhoneFrame,
   openRules,
   openAuth,
+  openInstallApp,
   activeTab,
   setActiveTab
 }) => {
@@ -74,6 +77,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Install App Button (Prominent) */}
+          {openInstallApp && (
+            <button
+              onClick={openInstallApp}
+              title="Instalar App no Celular (PWA)"
+              className="flex items-center gap-1.5 text-xs font-black px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-950 border border-emerald-400/40 transition-all active:scale-95 animate-pulse"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Instalar App</span>
+              <span className="xs:hidden">App</span>
+            </button>
+          )}
+
           {/* Android Frame Switcher (Only on larger screens) */}
           <button
             onClick={() => setIsPhoneFrame(!isPhoneFrame)}
@@ -198,6 +214,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 {/* Actions */}
                 <div className="p-1 space-y-0.5">
+                  {openInstallApp && (
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        openInstallApp();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-emerald-400 hover:bg-emerald-950/40 rounded-xl transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-emerald-400" />
+                      <span>📲 Instalar App no Celular</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => {
                       setShowUserMenu(false);

@@ -15,6 +15,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { PushToast } from './components/PushToast';
 import { RulesModal } from './components/RulesModal';
 import { AuthModal } from './components/AuthModal';
+import { InstallAppModal } from './components/InstallAppModal';
 import { Smartphone, Wifi, Battery, Signal } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
@@ -22,6 +23,7 @@ const MainAppContent: React.FC = () => {
   const [isPhoneFrame, setIsPhoneFrame] = useState<boolean>(false);
   const [isRulesOpen, setIsRulesOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
 
   const { isAdmin, logout } = useBolao();
 
@@ -56,8 +58,18 @@ const MainAppContent: React.FC = () => {
       {/* Rules Modal */}
       <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
 
+      {/* Install App / PWA Modal */}
+      <InstallAppModal 
+        isOpen={isInstallModalOpen} 
+        onClose={() => setIsInstallModalOpen(false)} 
+      />
+
       {/* Auth Modal */}
-      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      <AuthModal 
+        isOpen={isAuthOpen} 
+        onClose={() => setIsAuthOpen(false)} 
+        onAdminLogin={() => setActiveTab('admin')}
+      />
 
       {/* Android Phone Frame Simulator (Toggleable on Desktop) */}
       {isPhoneFrame ? (
@@ -81,6 +93,7 @@ const MainAppContent: React.FC = () => {
               setIsPhoneFrame={setIsPhoneFrame}
               openRules={() => setIsRulesOpen(true)}
               openAuth={() => setIsAuthOpen(true)}
+              openInstallApp={() => setIsInstallModalOpen(true)}
               activeTab={activeTab}
               setActiveTab={setActiveTab}
             />
@@ -102,6 +115,7 @@ const MainAppContent: React.FC = () => {
             setIsPhoneFrame={setIsPhoneFrame}
             openRules={() => setIsRulesOpen(true)}
             openAuth={() => setIsAuthOpen(true)}
+            openInstallApp={() => setIsInstallModalOpen(true)}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
           />

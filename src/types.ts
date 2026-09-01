@@ -54,6 +54,8 @@ export interface UserBet {
   userEmail: string;
   userAvatar?: string;
   roundId: number;
+  betNumber?: number;
+  betLabel?: string;
   predictions: Record<string, { home: number; away: number }>;
   status: BetStatus;
   receiptUrl?: string;
@@ -82,6 +84,10 @@ export interface User {
   totalExactHits: number;
   totalOutcomeHits: number;
   roundsParticipated: number;
+  isOnline?: boolean;
+  lastActive?: string;
+  city?: string;
+  state?: string;
 }
 
 export interface AppNotification {
@@ -106,4 +112,6 @@ export interface RankingEntry {
   roundsCount: number;
   position: number;
   lastRoundPoints?: number;
+  bestBetLabel?: string;
+  isRoundWinner?: boolean;
 }

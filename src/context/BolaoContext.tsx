@@ -14,21 +14,26 @@ interface BolaoContextType {
   bets: UserBet[];
   notifications: AppNotification[];
   selectedRoundId: number;
+  selectedBetId: string | null;
   activeRound: Round | undefined;
   activeBet: UserBet | undefined;
+  userRoundBets: UserBet[];
   unreadNotifsCount: number;
   pushToast: AppNotification | null;
   isAdmin: boolean;
   // User Actions
-  login: (loginOrEmail: string, pass?: string) => { success: boolean; message?: string };
+  login: (loginOrEmail: string, pass?: string) => { success: boolean; isAdmin?: boolean; message?: string };
   register: (data: { name: string; email: string; favoriteTeam: string; pixKey?: string; phone?: string }) => void;
   logout: () => void;
   switchUser: (userId: string, adminPass?: string) => { success: boolean; message?: string };
   setSelectedRoundId: (id: number) => void;
-  updatePrediction: (roundId: number, matchId: string, home: number | null, away: number | null) => void;
-  getUserPredictionsForRound: (roundId: number) => Record<string, { home: number; away: number }>;
-  lockAndProceedToPayment: (roundId: number) => { success: boolean; missingMatchId?: string; missingIndex?: number; message?: string };
-  submitPixReceipt: (roundId: number, receiptUrl: string, txId?: string) => void;
+  setSelectedBetId: (id: string | null) => void;
+  createNewBetForRound: (roundId: number) => UserBet | null;
+  deleteDraftBet: (betId: string) => void;
+  updatePrediction: (roundId: number, matchId: string, home: number | null, away: number | null, betId?: string) => void;
+  getUserPredictionsForRound: (roundId: number, betId?: string) => Record<string, { home: number; away: number }>;
+  lockAndProceedToPayment: (roundId: number, betId?: string) => { success: boolean; missingMatchId?: string; missingIndex?: number; message?: string };
+  submitPixReceipt: (roundId: number, receiptUrl: string, txId?: string, betId?: string) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   clearPushToast: () => void;
@@ -45,6 +50,8 @@ interface BolaoContextType {
   adminUpdateTeam: (teamId: string, updated: Partial<Team>) => void;
   adminEditMatchTeams: (roundId: number, matchId: string, homeTeamName: string, awayTeamName: string, stadium?: string) => void;
   adminUpdateRoundDeadline: (roundId: number, newDeadline: string) => void;
+  adminSendNotification: (data: { userId?: string; title: string; message: string; type?: AppNotification['type'] }) => void;
+  adminUpdateUser: (userId: string, data: Partial<User>) => void;
   // Ranking
   getGlobalRanking: () => RankingEntry[];
   getRoundRanking: (roundId: number) => RankingEntry[];
@@ -131,6 +138,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return saved ? Number(saved) : 2; // Default to Round 2 (Open)
   });
 
+  const [selectedBetId, setSelectedBetId] = useState<string | null>(null);
   const [pushToast, setPushToast] = useState<AppNotification | null>(null);
 
   // Sync to localStorage
@@ -168,7 +176,10 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const visibleRounds = rounds.filter(r => !r.isArchived);
   const activeRound = visibleRounds.find(r => r.id === selectedRoundId) || visibleRounds[0];
 
-  const activeBet = bets.find(b => b.userId === currentUserId && b.roundId === selectedRoundId);
+  const userRoundBets = bets.filter(b => b.userId === currentUserId && b.roundId === selectedRoundId);
+  const activeBet = selectedBetId
+    ? userRoundBets.find(b => b.id === selectedBetId) || userRoundBets[0]
+    : (userRoundBets[userRoundBets.length - 1] || userRoundBets[0]);
 
   const unreadNotifsCount = notifications.filter(n => !n.read && (!n.userId || n.userId === currentUserId)).length;
 
@@ -191,7 +202,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const clearPushToast = () => setPushToast(null);
 
-  const login = (loginOrEmail: string, pass?: string): { success: boolean; message?: string } => {
+  const login = (loginOrEmail: string, pass?: string): { success: boolean; isAdmin?: boolean; message?: string } => {
     const cleanInput = (loginOrEmail || '').trim().toLowerCase();
     const cleanPass = (pass || '').trim();
 
@@ -246,7 +257,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         type: 'system',
         userId: adminUser.id
       });
-      return { success: true };
+      return { success: true, isAdmin: true };
     }
 
     // Check regular users
@@ -265,7 +276,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       setCurrentUserId(user.id);
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, user.id);
-      return { success: true };
+      return { success: true, isAdmin: user.role === 'admin' };
     }
 
     return {
@@ -320,12 +331,87 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true };
   };
 
-  const getUserPredictionsForRound = (roundId: number): Record<string, { home: number; away: number }> => {
-    const bet = bets.find(b => b.userId === currentUserId && b.roundId === roundId);
-    return bet ? bet.predictions : {};
+  const createNewBetForRound = (roundId: number): UserBet | null => {
+    if (!currentUser) return null;
+
+    const round = rounds.find(r => r.id === roundId);
+    if (round) {
+      const closedCheck = isRoundBettingClosed(round);
+      if (closedCheck.isClosed) {
+        triggerPush({
+          title: '🔒 Rodada Fechada',
+          message: 'Não é possível criar novo palpite pois a rodada já encerrou ou o 1º jogo começou.',
+          type: 'system',
+          roundId,
+          userId: currentUserId
+        });
+        return null;
+      }
+    }
+
+    const currentRoundBets = bets.filter(b => b.userId === currentUserId && b.roundId === roundId);
+    const betNumber = currentRoundBets.length + 1;
+    const newBetId = `bet-r${roundId}-${currentUserId}-${Date.now()}`;
+    const newBet: UserBet = {
+      id: newBetId,
+      userId: currentUserId,
+      userName: currentUser.name,
+      userEmail: currentUser.email,
+      userAvatar: currentUser.avatar,
+      roundId,
+      betNumber,
+      betLabel: `Palpite #${betNumber}`,
+      predictions: {},
+      status: 'draft',
+      createdAt: new Date().toISOString(),
+      isLocked: false
+    };
+
+    setBets(prev => [...prev, newBet]);
+    setSelectedBetId(newBetId);
+
+    triggerPush({
+      title: `🎫 Novo Bilhete Criado: Palpite #${betNumber}`,
+      message: `Você iniciou o Palpite #${betNumber} para a Rodada ${roundId}. Preencha os 10 jogos para travar e pagar a taxa via PIX!`,
+      type: 'system',
+      roundId,
+      userId: currentUserId
+    });
+
+    return newBet;
   };
 
-  const updatePrediction = (roundId: number, matchId: string, home: number | null, away: number | null) => {
+  const deleteDraftBet = (betId: string) => {
+    const targetBet = bets.find(b => b.id === betId);
+    if (!targetBet || (targetBet.isLocked && targetBet.status !== 'draft')) return;
+
+    setBets(prev => prev.filter(b => b.id !== betId));
+    setSelectedBetId(null);
+  };
+
+  const getUserPredictionsForRound = (roundId: number, betId?: string): Record<string, { home: number; away: number }> => {
+    const roundBets = bets.filter(b => b.userId === currentUserId && b.roundId === roundId);
+    if (roundBets.length === 0) return {};
+
+    let targetBet: UserBet | undefined;
+    if (betId) {
+      targetBet = roundBets.find(b => b.id === betId);
+    } else if (selectedBetId) {
+      targetBet = roundBets.find(b => b.id === selectedBetId);
+    }
+    if (!targetBet) {
+      targetBet = roundBets[roundBets.length - 1] || roundBets[0];
+    }
+    return targetBet ? targetBet.predictions : {};
+  };
+
+  const updatePrediction = (
+    roundId: number, 
+    matchId: string, 
+    home: number | null, 
+    away: number | null, 
+    betId?: string
+  ) => {
     if (!currentUser) return;
 
     const targetRound = rounds.find(r => r.id === roundId);
@@ -341,52 +427,69 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     }
 
-    // Cannot edit if already locked or confirmed
-    const existingBet = bets.find(b => b.userId === currentUserId && b.roundId === roundId);
-    if (existingBet && existingBet.isLocked && existingBet.status !== 'draft') {
-      return;
-    }
-
     setBets(prev => {
-      const idx = prev.findIndex(b => b.userId === currentUserId && b.roundId === roundId);
-      if (idx >= 0) {
-        const bet = { ...prev[idx] };
-        const updatedPreds = { ...bet.predictions };
+      const userRoundBetsList = prev.filter(b => b.userId === currentUserId && b.roundId === roundId);
+      let targetBetId = betId || selectedBetId;
+      let target = userRoundBetsList.find(b => b.id === targetBetId);
 
-        if (home === null || away === null) {
-          delete updatedPreds[matchId];
-        } else {
-          updatedPreds[matchId] = { home, away };
+      // If target is locked or not found, see if we have an active unlocked draft
+      if (!target || (target.isLocked && target.status !== 'draft')) {
+        const editableDraft = userRoundBetsList.find(b => !b.isLocked && b.status === 'draft');
+        if (editableDraft) {
+          target = editableDraft;
+          targetBetId = editableDraft.id;
+        }
+      }
+
+      if (target) {
+        if (target.isLocked && target.status !== 'draft') {
+          return prev;
         }
 
-        bet.predictions = updatedPreds;
-        const updatedList = [...prev];
-        updatedList[idx] = bet;
-        return updatedList;
+        return prev.map(b => {
+          if (b.id === target!.id) {
+            const updatedPreds = { ...b.predictions };
+            if (home === null || away === null) {
+              delete updatedPreds[matchId];
+            } else {
+              updatedPreds[matchId] = { home, away };
+            }
+            return {
+              ...b,
+              predictions: updatedPreds
+            };
+          }
+          return b;
+        });
       } else {
         if (home === null || away === null) return prev;
+        const betNum = userRoundBetsList.length + 1;
+        const newBetId = `bet-r${roundId}-${currentUserId}-${Date.now()}`;
         const newBet: UserBet = {
-          id: `bet-r${roundId}-${currentUserId}`,
+          id: newBetId,
           userId: currentUserId,
           userName: currentUser.name,
           userEmail: currentUser.email,
           userAvatar: currentUser.avatar,
           roundId,
+          betNumber: betNum,
+          betLabel: `Palpite #${betNum}`,
           predictions: { [matchId]: { home, away } },
           status: 'draft',
           createdAt: new Date().toISOString(),
           isLocked: false
         };
+        setSelectedBetId(newBetId);
         return [...prev, newBet];
       }
     });
   };
 
   /**
-   * Validates if all 10 matches are filled.
+   * Validates if all 10 matches are filled for the selected bet.
    * If any match is missing, returns the missing matchId and index so UI can auto-scroll to it.
    */
-  const lockAndProceedToPayment = (roundId: number): { success: boolean; missingMatchId?: string; missingIndex?: number; message?: string } => {
+  const lockAndProceedToPayment = (roundId: number, betId?: string): { success: boolean; missingMatchId?: string; missingIndex?: number; message?: string } => {
     const round = rounds.find(r => r.id === roundId);
     if (!round) return { success: false, message: 'Rodada não encontrada' };
 
@@ -399,8 +502,20 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
     }
 
-    const bet = bets.find(b => b.userId === currentUserId && b.roundId === roundId);
-    const predictions = bet?.predictions || {};
+    const roundBets = bets.filter(b => b.userId === currentUserId && b.roundId === roundId);
+    const targetBet = (betId ? roundBets.find(b => b.id === betId) : null) ||
+                      (selectedBetId ? roundBets.find(b => b.id === selectedBetId) : null) ||
+                      roundBets.find(b => !b.isLocked && b.status === 'draft') ||
+                      roundBets[roundBets.length - 1];
+
+    if (!targetBet) {
+      return {
+        success: false,
+        message: 'Nenhum palpite em edição encontrado para travar. Preencha os 10 jogos.'
+      };
+    }
+
+    const predictions = targetBet.predictions || {};
 
     // Check all 10 matches
     for (let i = 0; i < round.matches.length; i++) {
@@ -411,31 +526,30 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           success: false,
           missingMatchId: match.id,
           missingIndex: i + 1,
-          message: `Falta preencher o palpite do jogo ${i + 1}: ${match.homeTeam} x ${match.awayTeam}. Todos os 10 palpites são obrigatórios!`
+          message: `Falta preencher o palpite do jogo ${i + 1}: ${match.homeTeam} x ${match.awayTeam}. Todos os 10 palpites são obrigatórios no ${targetBet.betLabel || 'bilhete'}!`
         };
       }
     }
 
-    // All 10 matches predicted! Lock the bet and change status to locked_pending_payment
+    // All 10 matches predicted! Lock this specific bet and change status to locked_pending_payment
     setBets(prev => {
-      const idx = prev.findIndex(b => b.userId === currentUserId && b.roundId === roundId);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = {
-          ...updated[idx],
-          isLocked: true,
-          status: 'locked_pending_payment'
-        };
-        return updated;
-      }
-      return prev;
+      return prev.map(b => {
+        if (b.id === targetBet.id) {
+          return {
+            ...b,
+            isLocked: true,
+            status: 'locked_pending_payment'
+          };
+        }
+        return b;
+      });
     });
 
     try {
       confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.8 }
+        particleCount: 60,
+        spread: 70,
+        origin: { y: 0.75 }
       });
     } catch {
       // ignore
@@ -443,30 +557,37 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     return {
       success: true,
-      message: 'Os 10 palpites foram travados com sucesso! Agora realize o pagamento de R$ 10,00 via PIX para validar sua participação.'
+      message: `Os 10 palpites do ${targetBet.betLabel || 'bilhete'} foram travados com sucesso! Agora realize o pagamento de R$ 10,00 via PIX para validar sua participação.`
     };
   };
 
-  const submitPixReceipt = (roundId: number, receiptUrl: string, txId?: string) => {
+  const submitPixReceipt = (roundId: number, receiptUrl: string, txId?: string, betId?: string) => {
+    const roundBets = bets.filter(b => b.userId === currentUserId && b.roundId === roundId);
+    const targetBet = (betId ? roundBets.find(b => b.id === betId) : null) ||
+                      (selectedBetId ? roundBets.find(b => b.id === selectedBetId) : null) ||
+                      roundBets.find(b => b.status === 'locked_pending_payment') ||
+                      roundBets[roundBets.length - 1];
+
+    if (!targetBet) return;
+
     setBets(prev => {
-      const idx = prev.findIndex(b => b.userId === currentUserId && b.roundId === roundId);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = {
-          ...updated[idx],
-          status: 'receipt_submitted',
-          receiptUrl: receiptUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&auto=format&fit=crop&q=80',
-          receiptUploadedAt: new Date().toISOString(),
-          adminNotes: undefined
-        };
-        return updated;
-      }
-      return prev;
+      return prev.map(b => {
+        if (b.id === targetBet.id) {
+          return {
+            ...b,
+            status: 'receipt_submitted',
+            receiptUrl: receiptUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&auto=format&fit=crop&q=80',
+            receiptUploadedAt: new Date().toISOString(),
+            adminNotes: undefined
+          };
+        }
+        return b;
+      });
     });
 
     triggerPush({
-      title: '📤 Comprovante PIX Enviado!',
-      message: 'Seu comprovante foi enviado com sucesso e está na fila de aprovação do Administrador.',
+      title: `📤 Comprovante PIX do ${targetBet.betLabel || 'Palpite'} Enviado!`,
+      message: `Seu comprovante de R$ 10,00 foi enviado para análise do Administrador. Você já pode fazer outro palpite adicional se quiser!`,
       type: 'system',
       roundId,
       userId: currentUserId
@@ -883,6 +1004,26 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
   };
 
+  const adminSendNotification = (data: { userId?: string; title: string; message: string; type?: AppNotification['type'] }) => {
+    triggerPush({
+      title: data.title,
+      message: data.message,
+      type: data.type || 'system',
+      userId: data.userId
+    });
+  };
+
+  const adminUpdateUser = (userId: string, data: Partial<User>) => {
+    setUsers(prev =>
+      prev.map(u => {
+        if (u.id === userId) {
+          return { ...u, ...data };
+        }
+        return u;
+      })
+    );
+  };
+
   // Ranking calculation
   const getGlobalRanking = (): RankingEntry[] => {
     const list: RankingEntry[] = users
@@ -916,24 +1057,51 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const confirmedRoundBets = bets.filter(b => b.roundId === roundId && b.status === 'confirmed');
     const targetRound = rounds.find(r => r.id === roundId);
 
-    const list: RankingEntry[] = confirmedRoundBets.map(bet => {
-      const user = users.find(u => u.id === bet.userId);
+    // Group bets by userId and pick the user's best performing bet in this round
+    const userBestBetsMap = new Map<string, {
+      bet: UserBet;
+      points: number;
+      exactHits: number;
+      outcomeHits: number;
+    }>();
+
+    confirmedRoundBets.forEach(bet => {
       const evalRes = targetRound ? evaluateBet(bet.predictions, targetRound.matches) : { totalPoints: 0, exactHits: 0, outcomeHits: 0 };
       const pts = bet.calculatedPoints !== undefined ? bet.calculatedPoints : evalRes.totalPoints;
       const exact = bet.exactHitsCount !== undefined ? bet.exactHitsCount : evalRes.exactHits;
       const outcome = bet.outcomeHitsCount !== undefined ? bet.outcomeHitsCount : evalRes.outcomeHits;
 
+      const existing = userBestBetsMap.get(bet.userId);
+      if (!existing) {
+        userBestBetsMap.set(bet.userId, { bet, points: pts, exactHits: exact, outcomeHits: outcome });
+      } else {
+        // Tiebreak: points > exactHits > outcomeHits
+        if (
+          pts > existing.points ||
+          (pts === existing.points && exact > existing.exactHits) ||
+          (pts === existing.points && exact === existing.exactHits && outcome > existing.outcomeHits)
+        ) {
+          userBestBetsMap.set(bet.userId, { bet, points: pts, exactHits: exact, outcomeHits: outcome });
+        }
+      }
+    });
+
+    const list: RankingEntry[] = Array.from(userBestBetsMap.values()).map(({ bet, points, exactHits, outcomeHits }) => {
+      const user = users.find(u => u.id === bet.userId);
+
       return {
         userId: bet.userId,
-        name: bet.userName,
+        name: bet.userName || user?.name || 'Participante',
         avatar: bet.userAvatar || user?.avatar || '',
         favoriteTeam: user?.favoriteTeam || 'Brasil',
-        totalPoints: pts,
-        exactHits: exact,
-        outcomeHits: outcome,
+        totalPoints: points,
+        exactHits: exactHits,
+        outcomeHits: outcomeHits,
         roundsCount: 1,
         position: 0,
-        lastRoundPoints: pts
+        lastRoundPoints: points,
+        bestBetLabel: bet.betLabel || 'Palpite #1',
+        isRoundWinner: false
       };
     });
 
@@ -944,7 +1112,14 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return a.name.localeCompare(b.name);
     });
 
-    return list.map((entry, idx) => ({ ...entry, position: idx + 1 }));
+    const maxPoints = list.length > 0 ? list[0].totalPoints : 0;
+
+    return list.map((entry, idx) => ({
+      ...entry,
+      position: idx + 1,
+      // Crown round winner if they hold position 1 and have positive points or round has concluded
+      isRoundWinner: idx === 0 && (maxPoints > 0 || targetRound?.status === 'finished')
+    }));
   };
 
   return (
@@ -957,8 +1132,10 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         bets,
         notifications,
         selectedRoundId,
+        selectedBetId,
         activeRound,
         activeBet,
+        userRoundBets,
         unreadNotifsCount,
         pushToast,
         isAdmin,
@@ -967,6 +1144,9 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         logout,
         switchUser,
         setSelectedRoundId,
+        setSelectedBetId,
+        createNewBetForRound,
+        deleteDraftBet,
         updatePrediction,
         getUserPredictionsForRound,
         lockAndProceedToPayment,
@@ -986,6 +1166,8 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         adminUpdateTeam,
         adminEditMatchTeams,
         adminUpdateRoundDeadline,
+        adminSendNotification,
+        adminUpdateUser,
         getGlobalRanking,
         getRoundRanking
       }}

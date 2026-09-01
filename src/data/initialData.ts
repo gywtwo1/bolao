@@ -14,7 +14,11 @@ export const INITIAL_USERS: User[] = [
     totalPoints: 0,
     totalExactHits: 0,
     totalOutcomeHits: 0,
-    roundsParticipated: 0
+    roundsParticipated: 0,
+    isOnline: true,
+    lastActive: 'Agora',
+    city: 'São Paulo',
+    state: 'SP'
   },
   {
     id: 'user-1',
@@ -29,7 +33,11 @@ export const INITIAL_USERS: User[] = [
     totalPoints: 16,
     totalExactHits: 4,
     totalOutcomeHits: 4,
-    roundsParticipated: 1
+    roundsParticipated: 1,
+    isOnline: true,
+    lastActive: 'Online agora',
+    city: 'São Paulo',
+    state: 'SP'
   },
   {
     id: 'user-2',
@@ -44,7 +52,11 @@ export const INITIAL_USERS: User[] = [
     totalPoints: 14,
     totalExactHits: 3,
     totalOutcomeHits: 5,
-    roundsParticipated: 1
+    roundsParticipated: 1,
+    isOnline: true,
+    lastActive: 'Online há 2 min',
+    city: 'Campinas',
+    state: 'SP'
   },
   {
     id: 'user-3',
@@ -59,7 +71,11 @@ export const INITIAL_USERS: User[] = [
     totalPoints: 11,
     totalExactHits: 2,
     totalOutcomeHits: 5,
-    roundsParticipated: 1
+    roundsParticipated: 1,
+    isOnline: true,
+    lastActive: 'Online agora',
+    city: 'Santos',
+    state: 'SP'
   },
   {
     id: 'user-4',
@@ -74,7 +90,11 @@ export const INITIAL_USERS: User[] = [
     totalPoints: 10,
     totalExactHits: 2,
     totalOutcomeHits: 4,
-    roundsParticipated: 1
+    roundsParticipated: 1,
+    isOnline: false,
+    lastActive: 'Há 15 min',
+    city: 'Belo Horizonte',
+    state: 'MG'
   },
   {
     id: 'user-5',
@@ -89,7 +109,11 @@ export const INITIAL_USERS: User[] = [
     totalPoints: 7,
     totalExactHits: 1,
     totalOutcomeHits: 4,
-    roundsParticipated: 1
+    roundsParticipated: 1,
+    isOnline: false,
+    lastActive: 'Há 1 hora',
+    city: 'Porto Alegre',
+    state: 'RS'
   }
 ];
 
