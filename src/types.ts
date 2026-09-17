@@ -86,6 +86,7 @@ export interface User {
   roundsParticipated: number;
   isOnline?: boolean;
   lastActive?: string;
+  lastActiveTimestamp?: number;
   city?: string;
   state?: string;
 }

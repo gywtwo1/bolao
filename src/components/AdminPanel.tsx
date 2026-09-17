@@ -135,6 +135,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
   const [showGoogleLiveTable, setShowGoogleLiveTable] = useState<boolean>(false);
   const selectedTemplate = getBrasileirao2026RoundTemplate(selectedAutoRoundNum) || BRASILEIRAO_2026_SCHEDULE[Math.min(Math.max(selectedAutoRoundNum - 1, 0), 37)];
 
+  // 10 matches for new round
+  const [newMatches, setNewMatches] = useState<Omit<Match, 'id' | 'roundId' | 'homeScore' | 'awayScore' | 'status'>[]>([
+    { homeTeam: 'Flamengo', homeTeamCode: 'FLA', homeTeamLogo: BRASILEIRAO_TEAMS[0].logo, awayTeam: 'Corinthians', awayTeamCode: 'COR', awayTeamLogo: BRASILEIRAO_TEAMS[3].logo, date: '26/04 • 16:00', stadium: 'Maracanã (RJ)' },
+    { homeTeam: 'Palmeiras', homeTeamCode: 'PAL', homeTeamLogo: BRASILEIRAO_TEAMS[1].logo, awayTeam: 'São Paulo', awayTeamCode: 'SAO', awayTeamLogo: BRASILEIRAO_TEAMS[2].logo, date: '26/04 • 16:00', stadium: 'Allianz Parque (SP)' },
+    { homeTeam: 'Grêmio', homeTeamCode: 'GRE', homeTeamLogo: BRASILEIRAO_TEAMS[6].logo, awayTeam: 'Internacional', awayTeamCode: 'INT', awayTeamLogo: BRASILEIRAO_TEAMS[7].logo, date: '26/04 • 18:30', stadium: 'Arena do Grêmio (RS)' },
+    { homeTeam: 'Atlético-MG', homeTeamCode: 'CAM', homeTeamLogo: BRASILEIRAO_TEAMS[4].logo, awayTeam: 'Cruzeiro', awayTeamCode: 'CRU', awayTeamLogo: BRASILEIRAO_TEAMS[5].logo, date: '26/04 • 18:30', stadium: 'Arena MRV (MG)' },
+    { homeTeam: 'Fluminense', homeTeamCode: 'FLU', homeTeamLogo: BRASILEIRAO_TEAMS[9].logo, awayTeam: 'Vasco da Gama', awayTeamCode: 'VAS', awayTeamLogo: BRASILEIRAO_TEAMS[10].logo, date: '26/04 • 19:00', stadium: 'Maracanã (RJ)' },
+    { homeTeam: 'Botafogo', homeTeamCode: 'BOT', homeTeamLogo: BRASILEIRAO_TEAMS[8].logo, awayTeam: 'Bahia', awayTeamCode: 'BAH', awayTeamLogo: BRASILEIRAO_TEAMS[11].logo, date: '27/04 • 16:00', stadium: 'Nilton Santos (RJ)' },
+    { homeTeam: 'Santos', homeTeamCode: 'SAN', homeTeamLogo: BRASILEIRAO_TEAMS[14].logo, awayTeam: 'Athletico-PR', awayTeamCode: 'CAP', awayTeamLogo: BRASILEIRAO_TEAMS[13].logo, date: '27/04 • 16:00', stadium: 'Vila Belmiro (SP)' },
+    { homeTeam: 'Fortaleza', homeTeamCode: 'FOR', homeTeamLogo: BRASILEIRAO_TEAMS[12].logo, awayTeam: 'Vitória', awayTeamCode: 'VIT', awayTeamLogo: BRASILEIRAO_TEAMS[16].logo, date: '27/04 • 18:30', stadium: 'Arena Castelão (CE)' },
+    { homeTeam: 'Red Bull Bragantino', homeTeamCode: 'RBB', homeTeamLogo: BRASILEIRAO_TEAMS[15].logo, awayTeam: 'Juventude', awayTeamCode: 'JUV', awayTeamLogo: BRASILEIRAO_TEAMS[17].logo, date: '27/04 • 18:30', stadium: 'Nabi Abi Chedid (SP)' },
+    { homeTeam: 'Sport Recife', homeTeamCode: 'SPO', homeTeamLogo: BRASILEIRAO_TEAMS[19].logo, awayTeam: 'Criciúma', awayTeamCode: 'CRI', awayTeamLogo: BRASILEIRAO_TEAMS[18].logo, date: '27/04 • 20:00', stadium: 'Ilha do Retiro (PE)' }
+  ]);
+
   const handleGateLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setGateError('');
@@ -236,20 +250,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
       </div>
     );
   }
-  
-  // 10 matches for new round
-  const [newMatches, setNewMatches] = useState<Omit<Match, 'id' | 'roundId' | 'homeScore' | 'awayScore' | 'status'>[]>([
-    { homeTeam: 'Flamengo', homeTeamCode: 'FLA', homeTeamLogo: BRASILEIRAO_TEAMS[0].logo, awayTeam: 'Corinthians', awayTeamCode: 'COR', awayTeamLogo: BRASILEIRAO_TEAMS[3].logo, date: '26/04 • 16:00', stadium: 'Maracanã (RJ)' },
-    { homeTeam: 'Palmeiras', homeTeamCode: 'PAL', homeTeamLogo: BRASILEIRAO_TEAMS[1].logo, awayTeam: 'São Paulo', awayTeamCode: 'SAO', awayTeamLogo: BRASILEIRAO_TEAMS[2].logo, date: '26/04 • 16:00', stadium: 'Allianz Parque (SP)' },
-    { homeTeam: 'Grêmio', homeTeamCode: 'GRE', homeTeamLogo: BRASILEIRAO_TEAMS[6].logo, awayTeam: 'Internacional', awayTeamCode: 'INT', awayTeamLogo: BRASILEIRAO_TEAMS[7].logo, date: '26/04 • 18:30', stadium: 'Arena do Grêmio (RS)' },
-    { homeTeam: 'Atlético-MG', homeTeamCode: 'CAM', homeTeamLogo: BRASILEIRAO_TEAMS[4].logo, awayTeam: 'Cruzeiro', awayTeamCode: 'CRU', awayTeamLogo: BRASILEIRAO_TEAMS[5].logo, date: '26/04 • 18:30', stadium: 'Arena MRV (MG)' },
-    { homeTeam: 'Fluminense', homeTeamCode: 'FLU', homeTeamLogo: BRASILEIRAO_TEAMS[9].logo, awayTeam: 'Vasco da Gama', awayTeamCode: 'VAS', awayTeamLogo: BRASILEIRAO_TEAMS[10].logo, date: '26/04 • 19:00', stadium: 'Maracanã (RJ)' },
-    { homeTeam: 'Botafogo', homeTeamCode: 'BOT', homeTeamLogo: BRASILEIRAO_TEAMS[8].logo, awayTeam: 'Bahia', awayTeamCode: 'BAH', awayTeamLogo: BRASILEIRAO_TEAMS[11].logo, date: '27/04 • 16:00', stadium: 'Nilton Santos (RJ)' },
-    { homeTeam: 'Santos', homeTeamCode: 'SAN', homeTeamLogo: BRASILEIRAO_TEAMS[14].logo, awayTeam: 'Athletico-PR', awayTeamCode: 'CAP', awayTeamLogo: BRASILEIRAO_TEAMS[13].logo, date: '27/04 • 16:00', stadium: 'Vila Belmiro (SP)' },
-    { homeTeam: 'Fortaleza', homeTeamCode: 'FOR', homeTeamLogo: BRASILEIRAO_TEAMS[12].logo, awayTeam: 'Vitória', awayTeamCode: 'VIT', awayTeamLogo: BRASILEIRAO_TEAMS[16].logo, date: '27/04 • 18:30', stadium: 'Arena Castelão (CE)' },
-    { homeTeam: 'Red Bull Bragantino', homeTeamCode: 'RBB', homeTeamLogo: BRASILEIRAO_TEAMS[15].logo, awayTeam: 'Juventude', awayTeamCode: 'JUV', awayTeamLogo: BRASILEIRAO_TEAMS[17].logo, date: '27/04 • 18:30', stadium: 'Nabi Abi Chedid (SP)' },
-    { homeTeam: 'Sport Recife', homeTeamCode: 'SPO', homeTeamLogo: BRASILEIRAO_TEAMS[19].logo, awayTeam: 'Criciúma', awayTeamCode: 'CRI', awayTeamLogo: BRASILEIRAO_TEAMS[18].logo, date: '27/04 • 20:00', stadium: 'Ilha do Retiro (PE)' }
-  ]);
 
   const targetRound = rounds.find(r => r.id === activeAdminRoundId) || rounds[0];
 
@@ -984,7 +984,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                 return true;
               })
               .map(user => {
-                const isOnline = user.isOnline ?? (user.role === 'admin' || user.id === 'user-1' || user.id === 'user-2' || user.id === 'user-3');
+                const isOnline = !!user.isOnline;
                 const cleanPhone = (user.phone || '').replace(/\D/g, '');
                 const userBets = bets.filter(b => b.userId === user.id);
                 const userBetsInActiveRound = bets.filter(b => b.userId === user.id && b.roundId === selectedRoundId);

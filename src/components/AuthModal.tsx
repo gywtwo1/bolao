@@ -159,60 +159,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
               >
                 Entrar no Bolão
               </button>
-
-              {/* Quick Admin Access Card */}
-              <div className="p-3 bg-amber-950/30 border border-amber-500/40 rounded-2xl flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-left">
-                  <div className="p-1.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
-                    <ShieldCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-amber-300 block">Conta de Administrador</span>
-                    <span className="text-[10px] text-slate-400">Login: <code className="text-amber-200">admin</code> • Senha: <code className="text-amber-200">228891</code></span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const res = login('admin', '228891');
-                    if (res.success) {
-                      onAdminLogin?.();
-                      onClose();
-                    }
-                  }}
-                  className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shrink-0 shadow transition-all"
-                >
-                  Entrar como ADM
-                </button>
-              </div>
-
-              {/* Demo Accounts List for quick preview (users only) */}
-              <div className="pt-3 border-t border-slate-800 space-y-2">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                  Contas de Participantes (Acesso Rápido):
-                </span>
-                <div className="space-y-1">
-                  {users.filter(u => u.role !== 'admin').slice(0, 3).map(u => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        switchUser(u.id);
-                        onClose();
-                      }}
-                      className="w-full flex items-center justify-between p-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs text-left text-slate-200 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <img src={u.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                        <span className="font-semibold">{u.name}</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-emerald-400">
-                        Entrar Direto
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </form>
           ) : (
             <form onSubmit={handleRegister} className="space-y-3">

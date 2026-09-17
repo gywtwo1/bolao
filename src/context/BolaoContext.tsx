@@ -21,6 +21,7 @@ interface BolaoContextType {
   unreadNotifsCount: number;
   pushToast: AppNotification | null;
   isAdmin: boolean;
+  onlineUsersCount: number;
   // User Actions
   login: (loginOrEmail: string, pass?: string) => { success: boolean; isAdmin?: boolean; message?: string };
   register: (data: { name: string; email: string; favoriteTeam: string; pixKey?: string; phone?: string }) => void;
@@ -36,6 +37,8 @@ interface BolaoContextType {
   submitPixReceipt: (roundId: number, receiptUrl: string, txId?: string, betId?: string) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
+  deleteNotification: (id: string) => void;
+  clearAllNotifications: () => void;
   clearPushToast: () => void;
   // Admin Actions
   adminApproveBet: (betId: string) => void;
@@ -59,6 +62,8 @@ interface BolaoContextType {
 
 const BolaoContext = createContext<BolaoContextType | undefined>(undefined);
 
+const TEST_USER_IDS = new Set(['user-1', 'user-2', 'user-3', 'user-4', 'user-5']);
+
 const STORAGE_KEYS = {
   USERS: 'bolao2026_users',
   TEAMS: 'bolao2026_teams',
@@ -70,10 +75,12 @@ const STORAGE_KEYS = {
 };
 
 export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load from localStorage or defaults
+  // Load from localStorage or defaults, scrubbing test users
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-    const loadedUsers: User[] = saved ? JSON.parse(saved) : INITIAL_USERS;
+    const rawLoadedUsers: User[] = saved ? JSON.parse(saved) : INITIAL_USERS;
+    const loadedUsers = rawLoadedUsers.filter(u => !TEST_USER_IDS.has(u.id));
+
     const hasAdmin = loadedUsers.some(u => u.role === 'admin' || u.id === 'user-admin' || u.email.toLowerCase() === 'admin');
     if (!hasAdmin) {
       const defaultAdmin = INITIAL_USERS.find(u => u.role === 'admin') || {
@@ -89,7 +96,10 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         totalPoints: 0,
         totalExactHits: 0,
         totalOutcomeHits: 0,
-        roundsParticipated: 0
+        roundsParticipated: 0,
+        isOnline: true,
+        lastActive: 'Online agora',
+        lastActiveTimestamp: Date.now()
       };
       return [defaultAdmin, ...loadedUsers];
     }
@@ -108,7 +118,8 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [bets, setBets] = useState<UserBet[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.BETS);
-    return saved ? JSON.parse(saved) : INITIAL_BETS;
+    const rawBets: UserBet[] = saved ? JSON.parse(saved) : INITIAL_BETS;
+    return rawBets.filter(b => !TEST_USER_IDS.has(b.userId));
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
@@ -130,7 +141,10 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    return saved || 'user-1'; // Default to Carlos Eduardo
+    if (saved && !TEST_USER_IDS.has(saved)) {
+      return saved;
+    }
+    return 'user-admin';
   });
 
   const [selectedRoundId, setSelectedRoundId] = useState<number>(() => {
@@ -169,6 +183,114 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.SELECTED_ROUND_ID, selectedRoundId.toString());
   }, [selectedRoundId]);
+
+  // Real-time verification of online users updated every second
+  useEffect(() => {
+    // Immediate heartbeat write
+    try {
+      localStorage.setItem('bolao2026_heartbeat', JSON.stringify({
+        userId: currentUserId,
+        timestamp: Date.now()
+      }));
+    } catch (err) {
+      // ignore
+    }
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+
+      // Write active heartbeat to localStorage for multi-tab / window sync
+      try {
+        localStorage.setItem('bolao2026_heartbeat', JSON.stringify({
+          userId: currentUserId,
+          timestamp: now
+        }));
+      } catch (err) {
+        // ignore
+      }
+
+      setUsers(prevUsers => {
+        let changed = false;
+        const updated = prevUsers.map(u => {
+          const isCurrentUser = u.id === currentUserId;
+
+          if (isCurrentUser) {
+            // Continuously verify and guarantee current user is online
+            const isFresh = u.isOnline && u.lastActive === 'Online agora' && u.lastActiveTimestamp && (now - u.lastActiveTimestamp <= 3000);
+            if (!isFresh) {
+              changed = true;
+              return {
+                ...u,
+                isOnline: true,
+                lastActive: 'Online agora',
+                lastActiveTimestamp: now
+              };
+            }
+            return u;
+          }
+
+          // For other registered users, dynamically verify lastActive timestamp
+          if (u.lastActiveTimestamp) {
+            const elapsed = now - u.lastActiveTimestamp;
+            if (elapsed <= 10000) {
+              // Active within 10 seconds
+              if (!u.isOnline || u.lastActive !== 'Online agora') {
+                changed = true;
+                return { ...u, isOnline: true, lastActive: 'Online agora' };
+              }
+            } else if (elapsed <= 60000) {
+              const sec = Math.floor(elapsed / 1000);
+              const label = `Visto há ${sec}s`;
+              if (u.isOnline || u.lastActive !== label) {
+                changed = true;
+                return { ...u, isOnline: false, lastActive: label };
+              }
+            } else {
+              const min = Math.floor(elapsed / 60000);
+              const label = min < 60 ? `Há ${min} min` : `Há ${Math.floor(min / 60)}h`;
+              if (u.isOnline || u.lastActive !== label) {
+                changed = true;
+                return { ...u, isOnline: false, lastActive: label };
+              }
+            }
+          }
+          return u;
+        });
+
+        return changed ? updated : prevUsers;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [currentUserId]);
+
+  // Multi-tab real-time sync for online status
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'bolao2026_heartbeat' && e.newValue) {
+        try {
+          const { userId, timestamp } = JSON.parse(e.newValue);
+          if (userId && timestamp) {
+            setUsers(prev => prev.map(u => {
+              if (u.id === userId) {
+                return {
+                  ...u,
+                  isOnline: true,
+                  lastActive: 'Online agora',
+                  lastActiveTimestamp: timestamp
+                };
+              }
+              return u;
+            }));
+          }
+        } catch (err) {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   const currentUser = users.find(u => u.id === currentUserId) || null;
   const isAdmin = currentUser?.role === 'admin';
@@ -276,6 +398,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       setCurrentUserId(user.id);
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, user.id);
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, isOnline: true, lastActive: 'Online agora', lastActiveTimestamp: Date.now() } : u));
       return { success: true, isAdmin: user.role === 'admin' };
     }
 
@@ -286,24 +409,29 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const register = (data: { name: string; email: string; favoriteTeam: string; pixKey?: string; phone?: string }) => {
+    const now = Date.now();
     const newUser: User = {
-      id: 'user-' + Date.now(),
-      name: data.name,
-      email: data.email,
+      id: 'user-' + now,
+      name: data.name.trim(),
+      email: data.email.trim(),
       role: 'user',
-      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(data.name)}`,
+      avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(data.name.trim())}`,
       favoriteTeam: data.favoriteTeam,
-      pixKey: data.pixKey || '',
-      phone: data.phone || '',
+      pixKey: data.pixKey?.trim() || '',
+      phone: data.phone?.trim() || '',
       createdAt: new Date().toISOString(),
       totalPoints: 0,
       totalExactHits: 0,
       totalOutcomeHits: 0,
-      roundsParticipated: 0
+      roundsParticipated: 0,
+      isOnline: true,
+      lastActive: 'Online agora',
+      lastActiveTimestamp: now
     };
 
     setUsers(prev => [...prev, newUser]);
     setCurrentUserId(newUser.id);
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, newUser.id);
     triggerPush({
       title: '🎉 Bem-vindo ao Bolão Brasileirão 2026!',
       message: `Olá ${data.name}, seu cadastro foi concluído. Participe da rodada ativa e concorra aos prêmios!`,
@@ -313,8 +441,12 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const logout = () => {
-    const firstUser = users.find(u => u.role === 'user') || users[0];
-    if (firstUser) setCurrentUserId(firstUser.id);
+    setUsers(prev => prev.map(u => u.id === currentUserId ? { ...u, isOnline: false, lastActive: 'Desconectado' } : u));
+    const adminUser = users.find(u => u.role === 'admin') || users[0];
+    if (adminUser) {
+      setCurrentUserId(adminUser.id);
+      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, adminUser.id);
+    }
   };
 
   const switchUser = (userId: string, adminPass?: string): { success: boolean; message?: string } => {
@@ -600,6 +732,20 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const markAllNotificationsAsRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const deleteNotification = (id: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const clearAllNotifications = () => {
+    if (currentUser?.role === 'admin') {
+      setNotifications([]);
+    } else if (currentUser) {
+      setNotifications(prev => prev.filter(n => n.userId && n.userId !== currentUser.id));
+    } else {
+      setNotifications([]);
+    }
   };
 
   // ADMIN ACTIONS
@@ -1139,6 +1285,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         unreadNotifsCount,
         pushToast,
         isAdmin,
+        onlineUsersCount: users.filter(u => u.isOnline).length,
         login,
         register,
         logout,
@@ -1153,6 +1300,8 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         submitPixReceipt,
         markNotificationAsRead,
         markAllNotificationsAsRead,
+        deleteNotification,
+        clearAllNotifications,
         clearPushToast,
         adminApproveBet,
         adminRejectBet,

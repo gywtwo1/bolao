@@ -10,9 +10,7 @@ import {
   Monitor, 
   ChevronDown, 
   LogOut, 
-  Sparkles,
-  DollarSign,
-  Download
+  DollarSign
 } from 'lucide-react';
 import { formatCurrency } from '../utils/pix';
 
@@ -31,11 +29,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   setIsPhoneFrame,
   openRules,
   openAuth,
-  openInstallApp,
   activeTab,
   setActiveTab
 }) => {
-  const { currentUser, users, switchUser, unreadNotifsCount, activeRound, isAdmin, logout } = useBolao();
+  const { currentUser, unreadNotifsCount, activeRound, isAdmin, logout, onlineUsersCount } = useBolao();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   return (
@@ -77,18 +74,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Install App Button (Prominent) */}
-          {openInstallApp && (
-            <button
-              onClick={openInstallApp}
-              title="Instalar App no Celular (PWA)"
-              className="flex items-center gap-1.5 text-xs font-black px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-950 border border-emerald-400/40 transition-all active:scale-95 animate-pulse"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">Instalar App</span>
-              <span className="xs:hidden">App</span>
-            </button>
-          )}
+          {/* Live Online Users Badge (Updated every second) */}
+          <div 
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-emerald-950/50 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold select-none"
+            title="Usuários online verificados a cada segundo"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="hidden sm:inline font-semibold text-slate-300">Online:</span>
+            <span className="text-emerald-400 font-black">{onlineUsersCount}</span>
+          </div>
 
           {/* Android Frame Switcher (Only on larger screens) */}
           <button
@@ -100,55 +97,31 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>{isPhoneFrame ? 'Desktop' : 'Modo Android'}</span>
           </button>
 
-          {/* Rules Modal Trigger */}
-          <button
-            onClick={openRules}
-            title="Regras e Pontuação"
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition-colors"
-          >
-            <HelpCircle className="w-4 h-4 text-slate-400" />
-          </button>
-
-          {/* Notification Button */}
-          <button
-            onClick={() => setActiveTab('notificacoes')}
-            title="Notificações Push"
-            className="relative p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition-colors"
-          >
-            <Bell className="w-4 h-4 text-slate-400" />
-            {unreadNotifsCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center animate-pulse">
-                {unreadNotifsCount}
-              </span>
-            )}
-          </button>
-
-          {/* User Score Pill */}
-          {currentUser && currentUser.role !== 'admin' && (
-            <div className="hidden sm:flex items-center gap-1.5 bg-emerald-950/60 border border-emerald-600/40 px-2.5 py-1 rounded-xl">
-              <Trophy className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-xs font-black text-emerald-300">{currentUser.totalPoints} pts</span>
-            </div>
-          )}
-
-          {/* User Account / Fast Switcher Dropdown */}
+          {/* User Profile Icon - Placed in the position of Regras */}
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className={`flex items-center gap-2 p-1.5 pl-2 pr-2.5 rounded-xl border transition-all ${
+              title={currentUser ? `Perfil: ${currentUser.name}` : 'Perfil do Usuário'}
+              className={`flex items-center gap-1.5 p-1 sm:p-1.5 pl-1.5 sm:pl-2 pr-2 sm:pr-2.5 rounded-xl border transition-all ${
                 isAdmin 
                   ? 'bg-amber-950/40 border-amber-500/50 text-amber-300 hover:bg-amber-950/60' 
                   : 'bg-slate-900 border-slate-800 text-white hover:border-slate-700'
               }`}
             >
-              <img
-                src={currentUser?.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=user'}
-                alt="Avatar"
-                className="w-7 h-7 rounded-lg object-cover border border-slate-700 bg-slate-800"
-              />
-              <div className="text-left hidden sm:block max-w-[100px] truncate">
+              <div className="relative">
+                <img
+                  src={currentUser?.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=user'}
+                  alt="Perfil"
+                  className="w-7 h-7 rounded-lg object-cover border border-slate-700 bg-slate-800"
+                />
+                <span 
+                  className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 border-2 border-slate-950 rounded-full animate-pulse" 
+                  title="Online Agora"
+                />
+              </div>
+              <div className="text-left hidden md:block max-w-[95px] truncate">
                 <p className="text-xs font-bold truncate leading-tight">
-                  {currentUser?.name.split(' ')[0] || 'Usuário'}
+                  {currentUser?.name.split(' ')[0] || 'Perfil'}
                 </p>
                 <p className="text-[10px] text-slate-400 uppercase font-semibold">
                   {isAdmin ? '🛡️ ADM' : `${currentUser?.totalPoints || 0} pts`}
@@ -157,17 +130,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
             </button>
 
-            {/* Dropdown Menu */}
+            {/* Profile Dropdown Menu */}
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/80 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute right-0 sm:left-0 sm:right-auto mt-2 w-64 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/90 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-3.5 py-2.5 border-b border-slate-800/80">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       Conta Atual
                     </span>
-                    {isAdmin && (
+                    {isAdmin ? (
                       <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded border border-amber-500/40">
                         Admin
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Online
                       </span>
                     )}
                   </div>
@@ -180,52 +157,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   )}
                 </div>
 
-                {/* Quick Switch Profiles for Testing & Demo */}
-                <div className="px-3.5 py-2 border-b border-slate-800/80">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    Trocar Perfil Rápido:
-                  </span>
-                  <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                    {users.filter(u => u.role !== 'admin').map(u => (
-                      <button
-                        key={u.id}
-                        onClick={() => {
-                          switchUser(u.id);
-                          setShowUserMenu(false);
-                        }}
-                        className={`w-full flex items-center justify-between p-1.5 rounded-lg text-xs transition-colors ${
-                          u.id === currentUser?.id
-                            ? 'bg-emerald-950/60 text-emerald-300 font-bold border border-emerald-800/40'
-                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <img src={u.avatar} alt="" className="w-5 h-5 rounded-full object-cover" />
-                          <span className="truncate">{u.name}</span>
-                        </div>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 shrink-0">
-                          {u.totalPoints} pts
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Actions */}
                 <div className="p-1 space-y-0.5">
-                  {openInstallApp && (
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        openInstallApp();
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-emerald-400 hover:bg-emerald-950/40 rounded-xl transition-colors"
-                    >
-                      <Download className="w-4 h-4 text-emerald-400" />
-                      <span>📲 Instalar App no Celular</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      openRules();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 hover:text-white rounded-xl transition-colors"
+                  >
+                    <HelpCircle className="w-4 h-4 text-emerald-400" />
+                    <span>Regras & Pontuação do Bolão</span>
+                  </button>
 
                   <button
                     onClick={() => {
@@ -268,6 +211,28 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
           </div>
+
+          {/* Notification Button */}
+          <button
+            onClick={() => setActiveTab('notificacoes')}
+            title="Notificações Push"
+            className="relative p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition-colors"
+          >
+            <Bell className="w-4 h-4 text-slate-400" />
+            {unreadNotifsCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center animate-pulse">
+                {unreadNotifsCount}
+              </span>
+            )}
+          </button>
+
+          {/* User Score Pill */}
+          {currentUser && currentUser.role !== 'admin' && (
+            <div className="hidden sm:flex items-center gap-1.5 bg-emerald-950/60 border border-emerald-600/40 px-2.5 py-1 rounded-xl">
+              <Trophy className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-xs font-black text-emerald-300">{currentUser.totalPoints} pts</span>
+            </div>
+          )}
         </div>
       </div>
     </header>

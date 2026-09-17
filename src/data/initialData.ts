@@ -16,104 +16,9 @@ export const INITIAL_USERS: User[] = [
     totalOutcomeHits: 0,
     roundsParticipated: 0,
     isOnline: true,
-    lastActive: 'Agora',
-    city: 'São Paulo',
-    state: 'SP'
-  },
-  {
-    id: 'user-1',
-    name: 'Carlos Eduardo Silva',
-    email: 'carlos@email.com',
-    role: 'user',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-    favoriteTeam: 'Palmeiras',
-    pixKey: 'carlos.pix@email.com',
-    phone: '(11) 98111-2233',
-    createdAt: '2026-02-01T12:00:00Z',
-    totalPoints: 16,
-    totalExactHits: 4,
-    totalOutcomeHits: 4,
-    roundsParticipated: 1,
-    isOnline: true,
     lastActive: 'Online agora',
     city: 'São Paulo',
     state: 'SP'
-  },
-  {
-    id: 'user-2',
-    name: 'Gabriela Santos',
-    email: 'gabriela@email.com',
-    role: 'user',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    favoriteTeam: 'São Paulo',
-    pixKey: '11982223344',
-    phone: '(11) 98222-3344',
-    createdAt: '2026-02-02T14:30:00Z',
-    totalPoints: 14,
-    totalExactHits: 3,
-    totalOutcomeHits: 5,
-    roundsParticipated: 1,
-    isOnline: true,
-    lastActive: 'Online há 2 min',
-    city: 'Campinas',
-    state: 'SP'
-  },
-  {
-    id: 'user-3',
-    name: 'Marcos Vinícius',
-    email: 'marcos@email.com',
-    role: 'user',
-    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
-    favoriteTeam: 'Corinthians',
-    pixKey: 'marcos.v@banco.com',
-    phone: '(11) 98333-4455',
-    createdAt: '2026-02-03T16:00:00Z',
-    totalPoints: 11,
-    totalExactHits: 2,
-    totalOutcomeHits: 5,
-    roundsParticipated: 1,
-    isOnline: true,
-    lastActive: 'Online agora',
-    city: 'Santos',
-    state: 'SP'
-  },
-  {
-    id: 'user-4',
-    name: 'Fernanda Lima',
-    email: 'fernanda@email.com',
-    role: 'user',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
-    favoriteTeam: 'Atlético-MG',
-    pixKey: 'fernanda.lima@email.com',
-    phone: '(31) 98444-5566',
-    createdAt: '2026-02-04T18:20:00Z',
-    totalPoints: 10,
-    totalExactHits: 2,
-    totalOutcomeHits: 4,
-    roundsParticipated: 1,
-    isOnline: false,
-    lastActive: 'Há 15 min',
-    city: 'Belo Horizonte',
-    state: 'MG'
-  },
-  {
-    id: 'user-5',
-    name: 'Lucas Ferreira',
-    email: 'lucas@email.com',
-    role: 'user',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    favoriteTeam: 'Grêmio',
-    pixKey: '51985556677',
-    phone: '(51) 98555-6677',
-    createdAt: '2026-02-05T09:15:00Z',
-    totalPoints: 7,
-    totalExactHits: 1,
-    totalOutcomeHits: 4,
-    roundsParticipated: 1,
-    isOnline: false,
-    lastActive: 'Há 1 hora',
-    city: 'Porto Alegre',
-    state: 'RS'
   }
 ];
 
@@ -444,95 +349,7 @@ export const INITIAL_ROUNDS: Round[] = [
   }
 ];
 
-export const INITIAL_BETS: UserBet[] = [
-  // Finished bets for Round 1
-  {
-    id: 'bet-r1-user1',
-    userId: 'user-1',
-    userName: 'Carlos Eduardo Silva',
-    userEmail: 'carlos@email.com',
-    userAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-    roundId: 1,
-    status: 'confirmed',
-    receiptUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&auto=format&fit=crop&q=80',
-    receiptUploadedAt: '2026-04-11T14:20:00Z',
-    paymentConfirmedAt: '2026-04-11T15:00:00Z',
-    calculatedPoints: 16,
-    exactHitsCount: 4,
-    outcomeHitsCount: 4,
-    wrongHitsCount: 2,
-    createdAt: '2026-04-11T14:15:00Z',
-    isLocked: true,
-    predictions: {
-      'r1-m1': { home: 2, away: 1 }, // Exact (3 pts)
-      'r1-m2': { home: 2, away: 0 }, // Exact (3 pts)
-      'r1-m3': { home: 1, away: 1 }, // Exact (3 pts)
-      'r1-m4': { home: 2, away: 1 }, // Winner GRE (1 pt)
-      'r1-m5': { home: 0, away: 1 }, // Exact (3 pts)
-      'r1-m6': { home: 1, away: 0 }, // Wrong BAH won in pred vs Draw (0 pt)
-      'r1-m7': { home: 2, away: 1 }, // Winner VAS (1 pt)
-      'r1-m8': { home: 1, away: 0 }, // Winner FOR (1 pt)
-      'r1-m9': { home: 2, away: 0 }, // Winner RBB (1 pt)
-      'r1-m10': { home: 2, away: 1 } // Wrong SPO vs Draw (0 pt)
-    }
-  },
-  {
-    id: 'bet-r1-user2',
-    userId: 'user-2',
-    userName: 'Gabriela Santos',
-    userEmail: 'gabriela@email.com',
-    userAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
-    roundId: 1,
-    status: 'confirmed',
-    receiptUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&auto=format&fit=crop&q=80',
-    receiptUploadedAt: '2026-04-11T18:00:00Z',
-    paymentConfirmedAt: '2026-04-11T18:30:00Z',
-    calculatedPoints: 14,
-    exactHitsCount: 3,
-    outcomeHitsCount: 5,
-    wrongHitsCount: 2,
-    createdAt: '2026-04-11T17:50:00Z',
-    isLocked: true,
-    predictions: {
-      'r1-m1': { home: 2, away: 1 }, // Exact (3 pts)
-      'r1-m2': { home: 3, away: 1 }, // Winner PAL (1 pt)
-      'r1-m3': { home: 0, away: 0 }, // Outcome Draw (1 pt)
-      'r1-m4': { home: 3, away: 2 }, // Exact (3 pts)
-      'r1-m5': { home: 1, away: 2 }, // Winner BOT (1 pt)
-      'r1-m6': { home: 2, away: 2 }, // Exact (3 pts)
-      'r1-m7': { home: 2, away: 0 }, // Winner VAS (1 pt)
-      'r1-m8': { home: 3, away: 1 }, // Winner FOR (1 pt)
-      'r1-m9': { home: 1, away: 1 }, // Wrong (0 pt)
-      'r1-m10': { home: 0, away: 1 } // Wrong (0 pt)
-    }
-  },
-  // User 3 has a pending receipt in Round 2 for Admin to review!
-  {
-    id: 'bet-r2-user3',
-    userId: 'user-3',
-    userName: 'Marcos Vinícius',
-    userEmail: 'marcos@email.com',
-    userAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
-    roundId: 2,
-    status: 'receipt_submitted',
-    receiptUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&auto=format&fit=crop&q=80',
-    receiptUploadedAt: '2026-04-18T11:25:00Z',
-    createdAt: '2026-04-18T11:20:00Z',
-    isLocked: true,
-    predictions: {
-      'r2-m1': { home: 1, away: 1 },
-      'r2-m2': { home: 2, away: 1 },
-      'r2-m3': { home: 0, away: 0 },
-      'r2-m4': { home: 2, away: 2 },
-      'r2-m5': { home: 1, away: 0 },
-      'r2-m6': { home: 0, away: 2 },
-      'r2-m7': { home: 1, away: 1 },
-      'r2-m8': { home: 2, away: 0 },
-      'r2-m9': { home: 1, away: 2 },
-      'r2-m10': { home: 0, away: 1 }
-    }
-  }
-];
+export const INITIAL_BETS: UserBet[] = [];
 
 export const INITIAL_NOTIFICATIONS: AppNotification[] = [
   {
@@ -543,15 +360,6 @@ export const INITIAL_NOTIFICATIONS: AppNotification[] = [
     createdAt: '2026-04-15T09:00:00Z',
     read: false,
     roundId: 2
-  },
-  {
-    id: 'notif-2',
-    title: '🏆 Resultados da 1ª Rodada Consolidados',
-    message: 'A 1ª rodada foi finalizada! Carlos Eduardo lidera o Ranking com 16 pontos (4 placares exatos). Confira o ranking!',
-    type: 'results_ready',
-    createdAt: '2026-04-14T08:30:00Z',
-    read: true,
-    roundId: 1
   },
   {
     id: 'notif-3',
