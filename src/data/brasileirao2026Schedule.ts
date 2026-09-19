@@ -608,45 +608,45 @@ export const BRASILEIRAO_2026_SCHEDULE: BrasileiraoRoundTemplate[] = [
     ]
   },
 
-  // Rodada 27 (Setembro 2026)
+  // Rodada 27 (Finalizada - 11 a 14 de Setembro de 2026 - Oficial GE Globo)
   {
     number: 27,
-    title: '27ª Rodada - Brasileirão 2026',
+    title: '27ª Rodada - Brasileirão 2026 (Finalizada)',
     season: '2026',
     price: 10.00,
-    deadline: '2026-09-13T16:00:00Z',
+    deadline: '2026-09-11T20:00:00Z',
     matches: [
+      createMatchTemplate('Coritiba', 'Athletico-PR', '11/09', '20:00', 'Couto Pereira (PR)'),
+      createMatchTemplate('Atlético-MG', 'Fluminense', '12/09', '16:00', 'Arena MRV (MG)'),
+      createMatchTemplate('Grêmio', 'Vasco da Gama', '12/09', '18:30', 'Arena do Grêmio (RS)'),
       createMatchTemplate('Chapecoense', 'Internacional', '13/09', '16:00', 'Arena Condá (SC)'),
-      createMatchTemplate('Corinthians', 'Palmeiras', '13/09', '16:00', 'Neo Química Arena (SP)'),
-      createMatchTemplate('Flamengo', 'Vitória', '13/09', '18:30', 'Maracanã (RJ)'),
-      createMatchTemplate('São Paulo', 'Coritiba', '13/09', '18:30', 'MorumBIS (SP)'),
-      createMatchTemplate('Atlético-MG', 'Fluminense', '13/09', '19:00', 'Arena MRV (MG)'),
-      createMatchTemplate('Santos', 'Botafogo', '14/09', '16:00', 'Vila Belmiro (SP)'),
-      createMatchTemplate('Bahia', 'Red Bull Bragantino', '14/09', '18:30', 'Arena Fonte Nova (BA)'),
-      createMatchTemplate('Athletico-PR', 'Remo-PA', '14/09', '19:00', 'Ligga Arena (PR)'),
-      createMatchTemplate('Vasco da Gama', 'Mirassol', '14/09', '20:00', 'São Januário (RJ)'),
-      createMatchTemplate('Grêmio', 'Cruzeiro', '14/09', '20:00', 'Arena do Grêmio (RS)')
+      createMatchTemplate('Palmeiras', 'São Paulo', '13/09', '16:00', 'Allianz Parque (SP)'),
+      createMatchTemplate('Botafogo', 'Red Bull Bragantino', '13/09', '18:30', 'Nilton Santos (RJ)'),
+      createMatchTemplate('Santos', 'Cruzeiro', '13/09', '18:30', 'Vila Belmiro (SP)'),
+      createMatchTemplate('Mirassol', 'Vitória', '13/09', '20:00', 'José Maria de Campos Maia (SP)'),
+      createMatchTemplate('Flamengo', 'Corinthians', '13/09', '20:30', 'Maracanã (RJ)'),
+      createMatchTemplate('Bahia', 'Remo-PA', '14/09', '20:00', 'Arena Fonte Nova (BA)')
     ]
   },
 
-  // Rodada 28
+  // Rodada 28 (Rodada Atual Oficial GE Globo - 19 e 20 de Setembro de 2026)
   {
     number: 28,
-    title: '28ª Rodada - Brasileirão 2026',
+    title: '28ª Rodada - Brasileirão 2026 (Rodada Atual)',
     season: '2026',
     price: 10.00,
-    deadline: '2026-10-18T16:00:00Z',
+    deadline: '2026-09-19T16:00:00Z',
     matches: [
-      createMatchTemplate('Fluminense', 'Flamengo', '18/10', '16:00', 'Maracanã (RJ)'),
-      createMatchTemplate('Santos', 'Corinthians', '18/10', '16:00', 'Vila Belmiro (SP)'),
-      createMatchTemplate('Internacional', 'São Paulo', '18/10', '18:30', 'Beira-Rio (RS)'),
-      createMatchTemplate('Atlético-MG', 'Cruzeiro', '18/10', '18:30', 'Arena MRV (MG)'),
-      createMatchTemplate('Botafogo', 'Vasco da Gama', '18/10', '19:00', 'Nilton Santos (RJ)'),
-      createMatchTemplate('Grêmio', 'Palmeiras', '19/10', '16:00', 'Arena do Grêmio (RS)'),
-      createMatchTemplate('Red Bull Bragantino', 'Fortaleza', '19/10', '16:00', 'Nabi Abi Chedid (SP)'),
-      createMatchTemplate('Juventude', 'Athletico-PR', '19/10', '18:30', 'Alfredo Jaconi (RS)'),
-      createMatchTemplate('Sport Recife', 'Bahia', '19/10', '18:30', 'Ilha do Retiro (PE)'),
-      createMatchTemplate('Criciúma', 'Vitória', '19/10', '20:00', 'Heriberto Hülse (SC)')
+      createMatchTemplate('Atlético-MG', 'Chapecoense', '19/09', '16:00', 'Arena MRV (MG)'),
+      createMatchTemplate('Mirassol', 'Botafogo', '19/09', '17:00', 'José Maria de Campos Maia (SP)'),
+      createMatchTemplate('Remo-PA', 'Santos', '19/09', '18:30', 'Baenão / Mangueirão (PA)'),
+      createMatchTemplate('Vasco da Gama', 'Coritiba', '19/09', '20:30', 'São Januário (RJ)'),
+      createMatchTemplate('São Paulo', 'Internacional', '19/09', '21:00', 'MorumBIS (SP)'),
+      createMatchTemplate('Grêmio', 'Palmeiras', '20/09', '11:00', 'Arena do Grêmio (RS)'),
+      createMatchTemplate('Corinthians', 'Fluminense', '20/09', '16:00', 'Neo Química Arena (SP)'),
+      createMatchTemplate('Vitória', 'Cruzeiro', '20/09', '16:00', 'Barradão (BA)'),
+      createMatchTemplate('Flamengo', 'Red Bull Bragantino', '20/09', '18:30', 'Maracanã (RJ)'),
+      createMatchTemplate('Athletico-PR', 'Bahia', '20/09', '19:30', 'Ligga Arena (PR)')
     ]
   },
 
@@ -869,37 +869,59 @@ export const getAllBrasileirao2026RoundTemplates = (): BrasileiraoRoundTemplate[
   return BRASILEIRAO_2026_SCHEDULE;
 };
 
-// Dados Atualizados do Brasileirão Série A 2026 (Via Google / CBF)
+// Dados Atualizados do Brasileirão Série A 2026 (Via GE Globo / CBF: ge.globo.com/futebol/brasileirao-serie-a/)
 export const GOOGLE_BRASILEIRAO_2026_LIVE_DATA = {
   currentSeason: '2026',
-  currentRoundNumber: 25,
-  currentRoundName: '25ª Rodada',
-  status: 'EM ANDAMENTO (Agosto / Setembro 2026)',
-  lastSyncDate: '30 de Agosto de 2026',
-  artilheiro: 'Kevin Viveros (Athletico-PR) - 17 gols',
-  melhorAtaque: 'Flamengo (45 gols marcados)',
-  melhorDefesa: 'Palmeiras (20 gols sofridos)',
+  currentRoundNumber: 28,
+  currentRoundName: '28ª Rodada',
+  status: 'RODADA ATUAL OFICIAL (19 e 20 de Setembro de 2026)',
+  lastSyncDate: '19 de Setembro de 2026',
+  source: 'https://ge.globo.com/futebol/brasileirao-serie-a/',
+  artilheiro: 'Pedro (Flamengo) - 16 gols • Flaco López (Palmeiras) - 15 gols • Kevin Viveros (Athletico-PR) - 14 gols',
+  melhorAtaque: 'Flamengo (50 gols marcados)',
+  melhorDefesa: 'Palmeiras (21 gols sofridos)',
   topLeaderboard: [
-    { pos: 1, team: 'Palmeiras', points: 51, games: 24, wins: 15, sg: 24 },
-    { pos: 2, team: 'Flamengo', points: 45, games: 23, wins: 13, sg: 24 },
-    { pos: 3, team: 'Athletico-PR', points: 44, games: 24, wins: 13, sg: 12 },
-    { pos: 4, team: 'Fluminense', points: 41, games: 24, wins: 11, sg: 7 },
-    { pos: 5, team: 'Cruzeiro', points: 39, games: 25, wins: 11, sg: -1 },
-    { pos: 6, team: 'Bahia', points: 37, games: 24, wins: 9, sg: 6 },
-    { pos: 7, team: 'Atlético-MG', points: 36, games: 24, wins: 10, sg: 4 },
-    { pos: 8, team: 'Red Bull Bragantino', points: 35, games: 24, wins: 10, sg: 4 }
+    { pos: 1, team: 'Flamengo', points: 57, games: 27, wins: 17, sg: 28 },
+    { pos: 2, team: 'Palmeiras', points: 56, games: 27, wins: 17, sg: 26 },
+    { pos: 3, team: 'Athletico-PR', points: 46, games: 27, wins: 14, sg: 13 },
+    { pos: 4, team: 'Bahia', points: 46, games: 27, wins: 13, sg: 8 },
+    { pos: 5, team: 'Fluminense', points: 45, games: 27, wins: 13, sg: 9 },
+    { pos: 6, team: 'Cruzeiro', points: 42, games: 27, wins: 12, sg: 2 },
+    { pos: 7, team: 'Atlético-MG', points: 39, games: 26, wins: 11, sg: 6 },
+    { pos: 8, team: 'Coritiba', points: 38, games: 27, wins: 11, sg: 1 },
+    { pos: 9, team: 'Red Bull Bragantino', points: 36, games: 26, wins: 10, sg: 3 },
+    { pos: 10, team: 'Santos', points: 35, games: 26, wins: 10, sg: 1 }
   ],
-  // Placar oficial dos confrontos da 25ª rodada
+  // Confrontos da 28ª rodada (Oficial GE Globo - 19 e 20 de Setembro)
   currentRoundScores: [
-    { home: 'Atlético-MG', away: 'Vitória', homeScore: 2, awayScore: 1, status: 'finished' as const },
-    { home: 'São Paulo', away: 'Red Bull Bragantino', homeScore: 2, awayScore: 1, status: 'finished' as const },
-    { home: 'Vasco da Gama', away: 'Cruzeiro', homeScore: 3, awayScore: 1, status: 'finished' as const },
-    { home: 'Athletico-PR', away: 'Fluminense', homeScore: 1, awayScore: 0, status: 'finished' as const },
-    { home: 'Corinthians', away: 'Santos', homeScore: 2, awayScore: 1, status: 'live' as const },
-    { home: 'Flamengo', away: 'Botafogo', homeScore: 2, awayScore: 2, status: 'live' as const },
-    { home: 'Mirassol', away: 'Palmeiras', homeScore: 0, awayScore: 2, status: 'scheduled' as const },
-    { home: 'Grêmio', away: 'Chapecoense', homeScore: 3, awayScore: 1, status: 'scheduled' as const },
-    { home: 'Bahia', away: 'Internacional', homeScore: 1, awayScore: 1, status: 'scheduled' as const },
-    { home: 'Coritiba', away: 'Remo-PA', homeScore: 2, awayScore: 0, status: 'scheduled' as const }
+    { home: 'Atlético-MG', away: 'Chapecoense', homeScore: null, awayScore: null, status: 'scheduled' },
+    { home: 'Mirassol', away: 'Botafogo', homeScore: null, awayScore: null, status: 'scheduled' },
+    { home: 'Remo-PA', away: 'Santos', homeScore: null, awayScore: null, status: 'scheduled' },
+    { home: 'Vasco da Gama', away: 'Coritiba', homeScore: null, awayScore: null, status: 'scheduled' },
+    { home: 'São Paulo', away: 'Internacional', homeScore: null, awayScore: null, status: 'scheduled' },
+    { home: 'Grêmio', away: 'Palmeiras', homeScore: null, awayScore: null, status: 'scheduled' },
+    { home: 'Corinthians', away: 'Fluminense', homeScore: null, awayScore: null, status: 'scheduled' },
+    { home: 'Vitória', away: 'Cruzeiro', homeScore: null, awayScore: null, status: 'scheduled' },
+    { home: 'Flamengo', away: 'Red Bull Bragantino', homeScore: null, awayScore: null, status: 'scheduled' },
+    { home: 'Athletico-PR', away: 'Bahia', homeScore: null, awayScore: null, status: 'scheduled' }
+  ] as Array<{
+    home: string;
+    away: string;
+    homeScore: number | null;
+    awayScore: number | null;
+    status: 'scheduled' | 'live' | 'finished';
+  }>,
+  // Resultados oficiais da 27ª rodada (Finalizada entre 11 e 14 de setembro)
+  finishedRound27Scores: [
+    { home: 'Coritiba', away: 'Athletico-PR', homeScore: 3, awayScore: 3, status: 'finished' as const },
+    { home: 'Atlético-MG', away: 'Fluminense', homeScore: 3, awayScore: 1, status: 'finished' as const },
+    { home: 'Grêmio', away: 'Vasco da Gama', homeScore: 1, awayScore: 2, status: 'finished' as const },
+    { home: 'Chapecoense', away: 'Internacional', homeScore: 1, awayScore: 2, status: 'finished' as const },
+    { home: 'Palmeiras', away: 'São Paulo', homeScore: 2, awayScore: 0, status: 'finished' as const },
+    { home: 'Botafogo', away: 'Red Bull Bragantino', homeScore: 1, awayScore: 1, status: 'finished' as const },
+    { home: 'Santos', away: 'Cruzeiro', homeScore: 2, awayScore: 1, status: 'finished' as const },
+    { home: 'Mirassol', away: 'Vitória', homeScore: 2, awayScore: 2, status: 'finished' as const },
+    { home: 'Flamengo', away: 'Corinthians', homeScore: 2, awayScore: 1, status: 'finished' as const },
+    { home: 'Bahia', away: 'Remo-PA', homeScore: 2, awayScore: 1, status: 'finished' as const }
   ]
 };

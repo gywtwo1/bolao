@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useBolao } from '../context/BolaoContext';
 import { generatePixPayload, formatCurrency } from '../utils/pix';
+import { isRoundBettingClosed } from '../utils/scoring';
 import { 
   QrCode, 
   Copy, 
@@ -12,7 +13,8 @@ import {
   FileText,
   Clock,
   PlusCircle,
-  Ticket
+  Ticket,
+  Lock
 } from 'lucide-react';
 
 interface PixPaymentModalProps {
@@ -35,6 +37,10 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ isOpen, onClos
   const currentBet = userRoundBets.find(b => b.id === betId) || userRoundBets[0];
   const pixData = generatePixPayload(activeRound.number, currentUser.id, activeRound.price || 10.00);
 
+  const roundClosedCheck = isRoundBettingClosed(activeRound);
+  const isBettingClosed = roundClosedCheck.isClosed;
+  const hasExistingReceipt = !!currentBet?.receiptUrl || currentBet?.status === 'receipt_submitted' || currentBet?.status === 'confirmed';
+
   const sampleReceipts = [
     { label: 'Nubank (R$ 10,00)', url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80' },
     { label: 'Itaú / Bradesco (R$ 10,00)', url: 'https://images.unsplash.com/photo-1554224154-26032ffc0d07?w=600&auto=format&fit=crop&q=80' },
@@ -54,6 +60,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ isOpen, onClos
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isBettingClosed) return;
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -67,6 +74,7 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ isOpen, onClos
   };
 
   const handleSubmit = () => {
+    if (isBettingClosed) return;
     setIsSubmitting(true);
     setTimeout(() => {
       submitPixReceipt(activeRound.id, selectedReceipt, txIdInput || pixData.txId, currentBet?.id || betId);
@@ -162,19 +170,36 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ isOpen, onClos
           </div>
         ) : (
           <div className="p-5 overflow-y-auto space-y-5 text-slate-200 text-sm">
-            {/* Important Warning Banner */}
-            <div className="bg-amber-950/40 border border-amber-500/40 rounded-2xl p-3.5 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div className="text-xs space-y-1">
-                <p className="font-bold text-amber-300">Atenção às regras de validação:</p>
-                <p className="text-slate-300 leading-relaxed">
-                  Os 10 palpites deste bilhete estão <strong>travados</strong>. Sem o pagamento de <strong>R$ 10,00</strong> e o envio do comprovante, sua aposta <strong>não será contabilizada</strong> no ranking.
-                </p>
+            {/* Warning Banner - Closed or Active */}
+            {isBettingClosed ? (
+              <div className="bg-rose-950/60 border border-rose-500/50 rounded-2xl p-4 flex items-start gap-3">
+                <Lock className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <p className="font-black text-rose-300 text-sm flex items-center gap-1.5">
+                    <span>⛔ Prazo de Envio Encerrado</span>
+                  </p>
+                  <p className="text-slate-200 leading-relaxed">
+                    O horário limite para registrar palpites e enviar comprovantes desta rodada já encerrou {roundClosedCheck.reason ? `(${roundClosedCheck.reason})` : ''}.
+                  </p>
+                  <p className="text-rose-400 font-bold mt-1">
+                    Conforme o regulamento oficial do bolão, não é mais permitido enviar comprovantes após o fechamento da rodada. Palpites sem confirmação prévia não concorrem à premiação.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-amber-950/40 border border-amber-500/40 rounded-2xl p-3.5 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-xs space-y-1">
+                  <p className="font-bold text-amber-300">Atenção às regras de validação:</p>
+                  <p className="text-slate-300 leading-relaxed">
+                    Os 10 palpites deste bilhete estão <strong>travados</strong>. O comprovante deve ser enviado <strong>antes do horário limite</strong> da rodada. Sem o pagamento aprovado pelo Administrador, a aposta <strong>não será contabilizada</strong> no ranking.
+                  </p>
+                </div>
+              </div>
+            )}
 
-            {/* QR Code & Pix Info */}
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4">
+            {/* QR Code & Pix Info (Only active if not closed or if user wants to see key for reference) */}
+            <div className={`bg-slate-950 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4 ${isBettingClosed && !hasExistingReceipt ? 'opacity-60' : ''}`}>
               <div className="bg-white p-2.5 rounded-xl shadow-md shrink-0">
                 <img
                   src={pixData.qrCodeUrl}
@@ -202,7 +227,8 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ isOpen, onClos
                     />
                     <button
                       onClick={handleCopyKey}
-                      className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition-colors shrink-0"
+                      disabled={isBettingClosed && !hasExistingReceipt}
+                      className="p-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 rounded-lg border border-slate-700 transition-colors shrink-0"
                       title="Copiar Chave"
                     >
                       {copiedKey ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
@@ -213,7 +239,8 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ isOpen, onClos
                 {/* Copia e Cola Button */}
                 <button
                   onClick={handleCopyCode}
-                  className="w-full flex items-center justify-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold py-2 rounded-xl transition-all"
+                  disabled={isBettingClosed && !hasExistingReceipt}
+                  className="w-full flex items-center justify-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 disabled:opacity-50 text-emerald-300 border border-emerald-500/40 text-xs font-bold py-2 rounded-xl transition-all"
                 >
                   {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   <span>{copiedCode ? 'Código PIX Copiado!' : 'Copiar PIX Copia e Cola'}</span>
@@ -222,74 +249,110 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ isOpen, onClos
             </div>
 
             {/* Upload Comprovante Section */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-emerald-400" />
-                  Anexar Comprovante de Pagamento (PIX)
-                </label>
-                <span className="text-[11px] text-emerald-400 font-semibold">Obrigatório</span>
+            {isBettingClosed && !hasExistingReceipt ? (
+              <div className="border border-rose-900/60 bg-rose-950/20 rounded-2xl p-4 text-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-rose-900/40 border border-rose-700/50 flex items-center justify-center mx-auto text-rose-400">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <p className="text-xs font-bold text-rose-300">
+                  Envio de Comprovante Bloqueado
+                </p>
+                <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                  Como o prazo limite desta rodada foi atingido, novos comprovantes não são mais aceitos pelo sistema.
+                </p>
               </div>
-
-              {/* Receipt Preview */}
-              <div className="relative border-2 border-dashed border-slate-700 rounded-2xl p-3 bg-slate-950/60 flex flex-col items-center justify-center gap-2 text-center">
-                {selectedReceipt ? (
-                  <div className="space-y-2 w-full flex flex-col items-center">
-                    <img
-                      src={selectedReceipt}
-                      alt="Comprovante Selecionado"
-                      className="h-32 object-contain rounded-lg border border-slate-700 bg-slate-900"
-                    />
-                    <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5" /> Comprovante pronto para envio
-                    </span>
-                  </div>
-                ) : (
-                  <div className="py-4 space-y-1">
-                    <UploadCloud className="w-8 h-8 text-slate-500 mx-auto" />
-                    <p className="text-xs text-slate-300 font-medium">
-                      Clique abaixo ou arraste uma foto/PDF do comprovante
-                    </p>
-                    <p className="text-[10px] text-slate-500">PNG, JPG, PDF até 5MB</p>
-                  </div>
-                )}
-
-                {/* Upload Input */}
-                <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-200 px-4 py-2 rounded-xl transition-colors inline-flex items-center gap-2">
-                  <UploadCloud className="w-4 h-4 text-emerald-400" />
-                  <span>Escolher Arquivo do Dispositivo</span>
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={handleFileUpload}
-                    className="hidden"
+            ) : hasExistingReceipt ? (
+              <div className="border border-slate-800 rounded-2xl p-4 bg-slate-950/80 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-white flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-emerald-400" />
+                    Comprovante Enviado
+                  </span>
+                  <span className="text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded font-bold text-[10px]">
+                    {currentBet?.status === 'confirmed' ? '✅ Aprovado' : '⏳ Em Análise'}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <img
+                    src={currentBet?.receiptUrl || selectedReceipt}
+                    alt="Comprovante"
+                    className="h-36 object-contain rounded-xl border border-slate-700 bg-slate-900"
                   />
-                </label>
-              </div>
-
-              {/* Quick Presets for Easy Demo in Preview */}
-              <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800 space-y-1.5">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                  Ou selecione um comprovante modelo de teste:
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-                  {sampleReceipts.map((samp, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setSelectedReceipt(samp.url)}
-                      className={`text-[11px] font-medium p-1.5 rounded-lg border text-left truncate transition-colors ${
-                        selectedReceipt === samp.url
-                          ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 font-bold'
-                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {samp.label}
-                    </button>
-                  ))}
+                  <p className="text-[11px] text-slate-400 mt-2">
+                    Enviado em {new Date(currentBet?.receiptUploadedAt || currentBet?.createdAt || Date.now()).toLocaleString('pt-BR')}
+                  </p>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-emerald-400" />
+                    Anexar Comprovante de Pagamento (PIX)
+                  </label>
+                  <span className="text-[11px] text-emerald-400 font-semibold">Obrigatório</span>
+                </div>
+
+                {/* Receipt Preview */}
+                <div className="relative border-2 border-dashed border-slate-700 rounded-2xl p-3 bg-slate-950/60 flex flex-col items-center justify-center gap-2 text-center">
+                  {selectedReceipt ? (
+                    <div className="space-y-2 w-full flex flex-col items-center">
+                      <img
+                        src={selectedReceipt}
+                        alt="Comprovante Selecionado"
+                        className="h-32 object-contain rounded-lg border border-slate-700 bg-slate-900"
+                      />
+                      <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" /> Comprovante pronto para envio
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="py-4 space-y-1">
+                      <UploadCloud className="w-8 h-8 text-slate-500 mx-auto" />
+                      <p className="text-xs text-slate-300 font-medium">
+                        Clique abaixo ou arraste uma foto/PDF do comprovante
+                      </p>
+                      <p className="text-[10px] text-slate-500">PNG, JPG, PDF até 5MB</p>
+                    </div>
+                  )}
+
+                  {/* Upload Input */}
+                  <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-200 px-4 py-2 rounded-xl transition-colors inline-flex items-center gap-2">
+                    <UploadCloud className="w-4 h-4 text-emerald-400" />
+                    <span>Escolher Arquivo do Dispositivo</span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* Quick Presets for Easy Demo in Preview */}
+                <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800 space-y-1.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    Ou selecione um comprovante modelo de teste:
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                    {sampleReceipts.map((samp, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setSelectedReceipt(samp.url)}
+                        className={`text-[11px] font-medium p-1.5 rounded-lg border text-left truncate transition-colors ${
+                          selectedReceipt === samp.url
+                            ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 font-bold'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {samp.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -300,17 +363,24 @@ export const PixPaymentModal: React.FC<PixPaymentModalProps> = ({ isOpen, onClos
               onClick={handleClose}
               className="px-4 py-2.5 rounded-xl border border-slate-700 text-xs font-bold text-slate-300 hover:bg-slate-800 transition-colors"
             >
-              Pagar Mais Tarde
+              {isBettingClosed ? 'Fechar' : 'Pagar Mais Tarde'}
             </button>
 
-            <button
-              onClick={handleSubmit}
-              disabled={!selectedReceipt || isSubmitting}
-              className="flex-1 max-w-xs flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-slate-950 font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-lg shadow-emerald-950/60 transition-all"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>{isSubmitting ? 'Enviando...' : 'Confirmar Envio do Comprovante'}</span>
-            </button>
+            {isBettingClosed ? (
+              <div className="flex items-center gap-2 bg-slate-900 text-slate-400 border border-slate-800 text-xs font-bold py-2.5 px-4 rounded-xl cursor-not-allowed">
+                <Lock className="w-4 h-4 text-rose-400" />
+                <span>Envio Bloqueado (Fora do Horário)</span>
+              </div>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={!selectedReceipt || isSubmitting}
+                className="flex-1 max-w-xs flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50 text-slate-950 font-extrabold text-xs py-2.5 px-4 rounded-xl shadow-lg shadow-emerald-950/60 transition-all"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>{isSubmitting ? 'Enviando...' : 'Confirmar Envio do Comprovante'}</span>
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -9,7 +9,13 @@ import {
 } from '../data/brasileirao2026Schedule';
 import { Match, Round, Team } from '../types';
 import { formatCurrency } from '../utils/pix';
-import { formatDeadlineDisplay, formatDeadlineShort } from '../utils/scoring';
+import { 
+  formatDeadlineDisplay, 
+  formatDeadlineShort, 
+  getFirstMatchDeadline, 
+  formatToDateTimeLocal, 
+  parseMatchDateTime 
+} from '../utils/scoring';
 import { 
   ShieldCheck, 
   CheckCircle2, 
@@ -74,6 +80,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
     adminDeleteTeam,
     adminUpdateTeam,
     adminUpdateRoundDeadline,
+    adminSyncRoundsWithOfficialCalendar,
     adminSendNotification,
     adminUpdateUser
   } = useBolao();
@@ -279,17 +286,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
       status: 'scheduled'
     }));
 
+    // Horário para fechar o bolão é estritamente o horário do primeiro jogo da rodada
+    const roundDeadline = getFirstMatchDeadline(formattedMatches, template.season || '2026', template.deadline);
+
     adminCreateRound({
       number: template.number,
       title: template.title,
       season: template.season || '2026',
       price: template.price || 10.00,
       status: 'open',
-      deadline: template.deadline,
+      deadline: roundDeadline,
       matches: formattedMatches
     });
 
-    setSuccessToast(`⚡ ${template.title} criada com sucesso com os 10 jogos oficiais do Brasileirão 2026!`);
+    setSuccessToast(`⚡ ${template.title} criada com sucesso! Fechamento no 1º jogo: ${formatDeadlineShort(roundDeadline)}`);
     setTimeout(() => setSuccessToast(null), 5000);
     setActiveAdminRoundId(roundNum);
   };
@@ -298,13 +308,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
     const template = getBrasileirao2026RoundTemplate(roundNum) || BRASILEIRAO_2026_SCHEDULE[Math.min(roundNum - 1, 37)];
     if (!template) return;
 
+    // Horário de fechamento é determinado pelo 1º jogo da rodada
+    const roundDeadline = getFirstMatchDeadline(template.matches, template.season || '2026', template.deadline);
+    const dtLocal = formatToDateTimeLocal(roundDeadline);
+
     setNewRoundNumber(template.number);
     setNewRoundTitle(template.title);
     setNewRoundPrice(template.price || 10.00);
-    setNewRoundDeadline(template.deadline ? template.deadline.slice(0, 16) : '2026-04-26T16:00');
+    setNewRoundDeadline(dtLocal);
     setNewMatches(template.matches);
 
-    setSuccessToast(`📋 10 Jogos da ${template.title} carregados no formulário de edição abaixo!`);
+    setSuccessToast(`📋 10 Jogos da ${template.title} carregados! Fechamento definido pelo 1º jogo (${formatDeadlineShort(roundDeadline)})`);
     setTimeout(() => setSuccessToast(null), 4000);
 
     const formEl = document.getElementById('manual-round-form');
@@ -344,17 +358,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
       status: 'scheduled'
     }));
 
+    // Horário para fechar o bolão é rigorosamente o horário do primeiro jogo
+    const roundDeadline = getFirstMatchDeadline(formattedMatches, '2026', newRoundDeadline);
+
     adminCreateRound({
       number: newRoundNumber,
       title: newRoundTitle,
       season: '2026',
       price: newRoundPrice,
       status: 'open',
-      deadline: newRoundDeadline,
+      deadline: roundDeadline,
       matches: formattedMatches
     });
 
-    setSuccessToast(`Nova rodada ${newRoundNumber} criada com sucesso! Fechamento: ${formatDeadlineShort(newRoundDeadline)}`);
+    setSuccessToast(`Nova rodada ${newRoundNumber} criada com sucesso! Fechamento no 1º jogo: ${formatDeadlineShort(roundDeadline)}`);
     setTimeout(() => setSuccessToast(null), 4000);
     setAdminTab('rodadas');
   };
@@ -583,7 +600,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                 Fila de Comprovantes PIX Pendentes de Validação
               </h3>
               <p className="text-xs text-slate-400">
-                O usuário precisa ter o comprovante aprovado para que seus 10 palpites contem na pontuação e no ranking.
+                O usuário precisa ter o comprovante aprovado pelo Administrador para que seus palpites pontuem no ranking oficial e o valor de R$ 10,00 entre no prêmio acumulado da rodada.
               </p>
             </div>
             <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-500/30">
@@ -787,7 +804,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                           : 'bg-slate-800 text-slate-400'
                       }`}
                     >
-                      {b.status === 'confirmed' ? '✅ Aprovado' : b.status === 'rejected' ? '❌ Rejeitado' : b.status}
+                      {b.status === 'confirmed' ? '✅ Aprovado' : b.status === 'rejected' ? '❌ Rejeitado' : b.status === 'receipt_submitted' ? '⏳ Em Análise' : '🔒 Pendente PIX'}
                     </span>
                     {b.calculatedPoints !== undefined && (
                       <span className="font-bold text-emerald-400">{b.calculatedPoints} pts</span>
@@ -1276,10 +1293,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                     handleAutoCreateRound(GOOGLE_BRASILEIRAO_2026_LIVE_DATA.currentRoundNumber);
                   }}
                   className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-extrabold text-xs rounded-xl shadow-md border border-amber-400/40 flex items-center justify-center gap-1.5 transition-all transform active:scale-95 whitespace-nowrap"
-                  title="Criar a rodada que está acontecendo agora (25ª Rodada)"
+                  title={`Criar a rodada oficial em andamento (${GOOGLE_BRASILEIRAO_2026_LIVE_DATA.currentRoundNumber}ª Rodada)`}
                 >
                   <Zap className="w-3.5 h-3.5 text-yellow-200 fill-yellow-200" />
                   <span>Criar Rodada Atual ({GOOGLE_BRASILEIRAO_2026_LIVE_DATA.currentRoundNumber}ª)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    adminSyncRoundsWithOfficialCalendar();
+                    setSuccessToast('🔄 Rodadas sincronizadas com ge.globo.com (Rodada 27 finalizada e Rodada 28 aberta)!');
+                    setTimeout(() => setSuccessToast(null), 4000);
+                  }}
+                  className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs rounded-xl border border-emerald-400/40 flex items-center justify-center gap-1.5 transition-all transform active:scale-95 whitespace-nowrap shadow-md"
+                  title="Atualizar confrontos e resultados para o calendário oficial do GE Globo (27ª e 28ª Rodadas)"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-200 animate-spin-hover" />
+                  <span>Sincronizar com GE Globo</span>
                 </button>
 
                 {nextSuggestedRoundNumber <= 38 && (
@@ -1295,22 +1326,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
               </div>
             </div>
 
-            {/* Google / CBF Série A 2026 Live Status Badge */}
+            {/* GE Globo / CBF Série A 2026 Live Status Badge */}
             <div className="bg-slate-950/60 border border-slate-800/90 rounded-2xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs relative z-10">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 font-black text-[11px] border border-sky-500/30">
-                  CBF / Google 2026
+                <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-black text-[11px] border border-emerald-500/30">
+                  GE Globo Oficial 2026
                 </span>
                 <span className="text-slate-300">
                   Status: <strong className="text-emerald-400 font-bold">{GOOGLE_BRASILEIRAO_2026_LIVE_DATA.status}</strong>
                 </span>
                 <span className="text-slate-500">•</span>
                 <span className="text-slate-300">
-                  Líder: <strong className="text-white">Palmeiras (51 pts)</strong>
+                  Líder: <strong className="text-white">{GOOGLE_BRASILEIRAO_2026_LIVE_DATA.topLeaderboard[0]?.team || 'Flamengo'} ({GOOGLE_BRASILEIRAO_2026_LIVE_DATA.topLeaderboard[0]?.points || 57} pts)</strong>
                 </span>
                 <span className="text-slate-500">•</span>
                 <span className="text-slate-300">
-                  Vice: <strong className="text-white">Flamengo (45 pts)</strong>
+                  Vice: <strong className="text-white">{GOOGLE_BRASILEIRAO_2026_LIVE_DATA.topLeaderboard[1]?.team || 'Palmeiras'} ({GOOGLE_BRASILEIRAO_2026_LIVE_DATA.topLeaderboard[1]?.points || 56} pts)</strong>
                 </span>
                 <span className="text-slate-500">•</span>
                 <span className="text-slate-300">
@@ -1321,10 +1352,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                 <button
                   type="button"
                   onClick={() => setShowGoogleLiveTable(!showGoogleLiveTable)}
-                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg border border-slate-700 font-bold text-[11px] flex items-center gap-1 transition-colors"
+                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg border border-slate-700 font-bold text-[11px] flex items-center gap-1 transition-colors"
                 >
                   <Eye className="w-3 h-3" />
-                  <span>{showGoogleLiveTable ? 'Ocultar Tabela Google' : 'Ver Tabela & Jogos Google'}</span>
+                  <span>{showGoogleLiveTable ? 'Ocultar Tabela GE Globo' : 'Ver Tabela & Jogos GE Globo'}</span>
                 </button>
                 <div className="text-[11px] text-slate-400 flex items-center gap-1">
                   <Clock className="w-3 h-3 text-slate-500" />
@@ -1333,19 +1364,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
               </div>
             </div>
 
-            {/* Expandable Google Serie A 2026 Standings & Real Match Scores */}
+            {/* Expandable GE Globo Serie A 2026 Standings & Real Match Scores */}
             {showGoogleLiveTable && (
-              <div className="bg-slate-950/90 border border-sky-500/30 rounded-2xl p-4 space-y-4 relative z-10 animate-fadeIn">
+              <div className="bg-slate-950/90 border border-emerald-500/30 rounded-2xl p-4 space-y-4 relative z-10 animate-fadeIn">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                     <h4 className="text-xs sm:text-sm font-extrabold text-white">
-                      Tabela de Classificação do Brasileirão 2026 (Top 8 - Dados Oficiais)
+                      Tabela de Classificação do Brasileirão 2026 (Top 10 - Dados Oficiais GE Globo)
                     </h4>
                   </div>
-                  <span className="text-[11px] text-slate-400">
-                    Fonte: Google Search / CBF Oficial 2026
-                  </span>
+                  <a 
+                    href="https://ge.globo.com/futebol/brasileirao-serie-a/" 
+                    target="_blank" 
+                    rel="noreferrer" 
+                    className="text-[11px] text-emerald-400 hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <span>ge.globo.com</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1395,10 +1432,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                     </table>
                   </div>
 
-                  {/* Round 25 Official Scores & Fixtures */}
+                  {/* Official Scores & Fixtures */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs font-bold text-slate-300 border-b border-slate-800/80 pb-1">
-                      <span>Resultados da 25ª Rodada (Agosto 2026):</span>
+                      <span>Confrontos da {GOOGLE_BRASILEIRAO_2026_LIVE_DATA.currentRoundName} ({GOOGLE_BRASILEIRAO_2026_LIVE_DATA.status}):</span>
                       <span className="text-[10px] text-emerald-400 font-semibold">10 Jogos</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto pr-1">
@@ -1760,14 +1797,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                 <div>
                   <label className="text-xs font-black text-amber-300 flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-amber-400" />
-                    Data e Horário de Fechamento para Palpitar (Obrigatório):
+                    Horário de Fechamento para Palpitar (1º Jogo da Rodada):
                   </label>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Os palpites dos participantes serão bloqueados automaticamente assim que atingir este horário limite.
+                    Por regra do bolão, o horário de encerramento dos palpites e envio de comprovante é do primeiro jogo da rodada.
                   </p>
                 </div>
-                <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
-                  ⏰ Bloqueio Automático
+                <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0 flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  Fechamento no 1º Jogo
                 </span>
               </div>
 
@@ -1782,84 +1820,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                   />
                 </div>
 
-                {/* Quick Presets for Admin */}
+                {/* Quick Presets & 1st Match Sync */}
                 <div className="sm:col-span-7 flex flex-wrap gap-1.5">
                   <button
                     type="button"
                     onClick={() => {
-                      const d = new Date();
-                      d.setHours(16, 0, 0, 0);
-                      setNewRoundDeadline(d.toISOString().slice(0, 16));
+                      if (newMatches.length > 0) {
+                        const firstMatchDate = parseMatchDateTime(newMatches[0]?.date);
+                        if (firstMatchDate) {
+                          setNewRoundDeadline(formatToDateTimeLocal(firstMatchDate));
+                          setSuccessToast(`⚡ Fechamento sincronizado com o 1º Jogo (${newMatches[0]?.homeTeam} x ${newMatches[0]?.awayTeam}): ${formatDeadlineShort(firstMatchDate.toISOString())}`);
+                          setTimeout(() => setSuccessToast(null), 3500);
+                        }
+                      }
                     }}
-                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
+                    className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/50 rounded-lg text-xs font-black text-emerald-300 transition-colors flex items-center gap-1.5 shadow-sm"
                   >
-                    Hoje 16h
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + 1);
-                      d.setHours(16, 0, 0, 0);
-                      setNewRoundDeadline(d.toISOString().slice(0, 16));
-                    }}
-                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
-                  >
-                    Amanhã 16h
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      const day = d.getDay();
-                      const diff = (6 - day + 7) % 7 || 7;
-                      d.setDate(d.getDate() + diff);
-                      d.setHours(16, 0, 0, 0);
-                      setNewRoundDeadline(d.toISOString().slice(0, 16));
-                    }}
-                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
-                  >
-                    Sábado 16h
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      const day = d.getDay();
-                      const diff = (7 - day + 7) % 7 || 7;
-                      d.setDate(d.getDate() + diff);
-                      d.setHours(16, 0, 0, 0);
-                      setNewRoundDeadline(d.toISOString().slice(0, 16));
-                    }}
-                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
-                  >
-                    Domingo 16h
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const d = new Date();
-                      const day = d.getDay();
-                      const diff = (3 - day + 7) % 7 || 7;
-                      d.setDate(d.getDate() + diff);
-                      d.setHours(19, 30, 0, 0);
-                      setNewRoundDeadline(d.toISOString().slice(0, 16));
-                    }}
-                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white transition-colors"
-                  >
-                    Quarta 19h30
+                    <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>⚡ Sincronizar com 1º Jogo ({newMatches[0]?.date || '16:00'})</span>
                   </button>
                 </div>
               </div>
 
               {/* Formatted Confirmation Preview */}
-              <div className="text-xs text-slate-300 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>
-                  Fechamento configurado para:{' '}
-                  <strong className="text-amber-300 font-bold">
-                    {formatDeadlineDisplay(newRoundDeadline)}
-                  </strong>
+              <div className="text-xs text-slate-300 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>
+                    Fechamento dos palpites:{' '}
+                    <strong className="text-amber-300 font-bold">
+                      {formatDeadlineDisplay(newRoundDeadline)}
+                    </strong>
+                  </span>
+                </div>
+                <span className="text-[10px] text-emerald-400 font-bold hidden sm:inline">
+                  ✓ Pontapé inicial do Jogo 1
                 </span>
               </div>
             </div>
@@ -1924,12 +1919,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
                       <input
                         type="text"
                         value={m.date}
+                        placeholder="Ex: 19/09 • 16:00"
                         onChange={e => {
                           const copy = [...newMatches];
                           copy[idx].date = e.target.value;
                           setNewMatches(copy);
+                          // Se for o 1º jogo, sincroniza automaticamente o horário de fechamento da rodada!
+                          if (idx === 0) {
+                            const parsed = parseMatchDateTime(e.target.value);
+                            if (parsed) {
+                              setNewRoundDeadline(formatToDateTimeLocal(parsed));
+                            }
+                          }
                         }}
-                        className="w-full bg-slate-900 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-800"
+                        className="w-full bg-slate-900 text-slate-300 text-[11px] px-2 py-1 rounded border border-slate-800 focus:border-emerald-500 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -2332,57 +2335,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onExitAdmin, openAuth })
 
               {/* Quick presets inside modal */}
               <div className="flex flex-wrap gap-1.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date();
-                    d.setHours(16, 0, 0, 0);
-                    setEditingDeadlineValue(d.toISOString().slice(0, 16));
-                  }}
-                  className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[11px] font-semibold text-slate-300 transition-colors"
-                >
-                  Hoje 16h
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date();
-                    d.setDate(d.getDate() + 1);
-                    d.setHours(16, 0, 0, 0);
-                    setEditingDeadlineValue(d.toISOString().slice(0, 16));
-                  }}
-                  className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[11px] font-semibold text-slate-300 transition-colors"
-                >
-                  Amanhã 16h
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date();
-                    const day = d.getDay();
-                    const diff = (6 - day + 7) % 7 || 7;
-                    d.setDate(d.getDate() + diff);
-                    d.setHours(16, 0, 0, 0);
-                    setEditingDeadlineValue(d.toISOString().slice(0, 16));
-                  }}
-                  className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[11px] font-semibold text-slate-300 transition-colors"
-                >
-                  Sábado 16h
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date();
-                    const day = d.getDay();
-                    const diff = (7 - day + 7) % 7 || 7;
-                    d.setDate(d.getDate() + diff);
-                    d.setHours(16, 0, 0, 0);
-                    setEditingDeadlineValue(d.toISOString().slice(0, 16));
-                  }}
-                  className="px-2 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[11px] font-semibold text-slate-300 transition-colors"
-                >
-                  Domingo 16h
-                </button>
+                {editingDeadlineRound.matches && editingDeadlineRound.matches.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const firstMatchDeadline = getFirstMatchDeadline(
+                        editingDeadlineRound.matches,
+                        editingDeadlineRound.season
+                      );
+                      setEditingDeadlineValue(formatToDateTimeLocal(firstMatchDeadline));
+                    }}
+                    className="px-2.5 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/50 rounded-lg text-xs font-black text-emerald-300 transition-colors flex items-center gap-1 shadow-sm"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>⚡ Horário do 1º Jogo ({editingDeadlineRound.matches[0]?.date})</span>
+                  </button>
+                )}
               </div>
 
               <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-xs text-slate-300 flex items-center gap-2">

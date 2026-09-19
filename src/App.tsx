@@ -6,7 +6,6 @@
 import React, { useState } from 'react';
 import { BolaoProvider, useBolao } from './context/BolaoContext';
 import { Navbar } from './components/Navbar';
-import { BottomNav } from './components/BottomNav';
 import { PalpitesView } from './components/PalpitesView';
 import { RankingView } from './components/RankingView';
 import { HistoryView } from './components/HistoryView';
@@ -99,12 +98,9 @@ const MainAppContent: React.FC = () => {
             />
 
             {/* Scrollable Phone Content */}
-            <main className="flex-1 overflow-y-auto pt-3">
+            <main className="flex-1 overflow-y-auto pt-3 pb-4">
               {renderActiveView()}
             </main>
-
-            {/* Phone Bottom Navigation Bar */}
-            <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
           </div>
         </div>
       ) : (
@@ -120,11 +116,9 @@ const MainAppContent: React.FC = () => {
             setActiveTab={setActiveTab}
           />
 
-          <main className="flex-1 pt-4 max-w-5xl w-full mx-auto">
+          <main className="flex-1 pt-4 pb-8 max-w-5xl w-full mx-auto">
             {renderActiveView()}
           </main>
-
-          <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
       )}
     </div>

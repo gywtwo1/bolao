@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Round, UserBet, AppNotification, RankingEntry, Match, Team } from '../types';
 import { INITIAL_USERS, INITIAL_ROUNDS, INITIAL_BETS, INITIAL_NOTIFICATIONS } from '../data/initialData';
 import { BRASILEIRAO_TEAMS } from '../data/teams';
-import { evaluateBet, isRoundBettingClosed } from '../utils/scoring';
+import { getBrasileirao2026RoundTemplate, BRASILEIRAO_2026_SCHEDULE, GOOGLE_BRASILEIRAO_2026_LIVE_DATA } from '../data/brasileirao2026Schedule';
+import { evaluateBet, isRoundBettingClosed, getFirstMatchDeadline } from '../utils/scoring';
 import { fetchLiveSportsScores } from '../utils/sportsApi';
 import confetti from 'canvas-confetti';
 
@@ -24,7 +25,7 @@ interface BolaoContextType {
   onlineUsersCount: number;
   // User Actions
   login: (loginOrEmail: string, pass?: string) => { success: boolean; isAdmin?: boolean; message?: string };
-  register: (data: { name: string; email: string; favoriteTeam: string; pixKey?: string; phone?: string }) => void;
+  register: (data: { name: string; email: string; password?: string; favoriteTeam: string; pixKey?: string; phone?: string }) => void;
   logout: () => void;
   switchUser: (userId: string, adminPass?: string) => { success: boolean; message?: string };
   setSelectedRoundId: (id: number) => void;
@@ -53,6 +54,7 @@ interface BolaoContextType {
   adminUpdateTeam: (teamId: string, updated: Partial<Team>) => void;
   adminEditMatchTeams: (roundId: number, matchId: string, homeTeamName: string, awayTeamName: string, stadium?: string) => void;
   adminUpdateRoundDeadline: (roundId: number, newDeadline: string) => void;
+  adminSyncRoundsWithOfficialCalendar: () => void;
   adminSendNotification: (data: { userId?: string; title: string; message: string; type?: AppNotification['type'] }) => void;
   adminUpdateUser: (userId: string, data: Partial<User>) => void;
   // Ranking
@@ -113,13 +115,42 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [rounds, setRounds] = useState<Round[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.ROUNDS);
-    return saved ? JSON.parse(saved) : INITIAL_ROUNDS;
+    let rawRounds: Round[] = saved ? JSON.parse(saved) : INITIAL_ROUNDS;
+
+    // Ensure rounds are synced with official GE Globo 2026 data (Rodadas 27, 28)
+    const hasGeGloboCurrentRound = rawRounds && rawRounds.some(r => r.id === 28 || r.number === 28);
+    if (!hasGeGloboCurrentRound) {
+      rawRounds = INITIAL_ROUNDS;
+      localStorage.setItem(STORAGE_KEYS.ROUNDS, JSON.stringify(INITIAL_ROUNDS));
+    }
+
+    // Sanitize rounds: ensure any open round's closing time is strictly the kickoff of the 1st match
+    return rawRounds.map(r => {
+      if (r.matches && r.matches.length > 0) {
+        const firstMatchDeadline = getFirstMatchDeadline(r.matches, r.season, r.deadline);
+        if (r.status === 'open') {
+          return {
+            ...r,
+            deadline: firstMatchDeadline
+          };
+        }
+      }
+      return r;
+    });
   });
 
   const [bets, setBets] = useState<UserBet[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.BETS);
     const rawBets: UserBet[] = saved ? JSON.parse(saved) : INITIAL_BETS;
-    return rawBets.filter(b => !TEST_USER_IDS.has(b.userId));
+    return rawBets
+      .filter(b => !TEST_USER_IDS.has(b.userId))
+      .map(b => {
+        // Remove rascunho/draft: convert legacy drafts to locked_pending_payment
+        if (b.status === 'draft') {
+          return { ...b, status: 'locked_pending_payment' as const };
+        }
+        return b;
+      });
   });
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
@@ -149,7 +180,9 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [selectedRoundId, setSelectedRoundId] = useState<number>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.SELECTED_ROUND_ID);
-    return saved ? Number(saved) : 2; // Default to Round 2 (Open)
+    const savedNum = saved ? Number(saved) : 28;
+    // If user previously had round 1 or 2 selected, point them to round 28 (current active open round)
+    return (savedNum === 1 || savedNum === 2) ? 28 : savedNum;
   });
 
   const [selectedBetId, setSelectedBetId] = useState<string | null>(null);
@@ -295,7 +328,40 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const currentUser = users.find(u => u.id === currentUserId) || null;
   const isAdmin = currentUser?.role === 'admin';
 
-  const visibleRounds = rounds.filter(r => !r.isArchived);
+  // Regra Oficial: Palpites sem confirmação do PIX NÃO contam como prêmio!
+  // Keep totalPot of each round dynamically synchronized with CONFIRMED bets only
+  useEffect(() => {
+    setRounds(prevRounds => {
+      let changed = false;
+      const updated = prevRounds.map(r => {
+        // Apenas bilhetes com PIX confirmado contam para o prêmio acumulado
+        const roundConfirmedBets = bets.filter(b => b.roundId === r.id && b.status === 'confirmed');
+        const betPrice = r.price || 10.00;
+        const expectedPot = roundConfirmedBets.length * betPrice;
+        if (r.totalPot !== expectedPot) {
+          changed = true;
+          return { ...r, totalPot: expectedPot };
+        }
+        return r;
+      });
+      return changed ? updated : prevRounds;
+    });
+  }, [bets]);
+
+  const visibleRounds = useMemo(() => {
+    return rounds
+      .filter(r => !r.isArchived)
+      .map(r => {
+        // Apenas bilhetes com PIX confirmado contam para o prêmio acumulado
+        const roundConfirmedBets = bets.filter(b => b.roundId === r.id && b.status === 'confirmed');
+        const betPrice = r.price || 10.00;
+        return {
+          ...r,
+          totalPot: roundConfirmedBets.length * betPrice
+        };
+      });
+  }, [rounds, bets]);
+
   const activeRound = visibleRounds.find(r => r.id === selectedRoundId) || visibleRounds[0];
 
   const userRoundBets = bets.filter(b => b.userId === currentUserId && b.roundId === selectedRoundId);
@@ -395,6 +461,13 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             message: 'Senha incorreta para esta conta de Administrador.'
           };
         }
+      } else if (user.password) {
+        if (!cleanPass || cleanPass !== user.password) {
+          return {
+            success: false,
+            message: 'Senha incorreta. Verifique sua senha e tente novamente.'
+          };
+        }
       }
       setCurrentUserId(user.id);
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, user.id);
@@ -408,12 +481,13 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   };
 
-  const register = (data: { name: string; email: string; favoriteTeam: string; pixKey?: string; phone?: string }) => {
+  const register = (data: { name: string; email: string; password?: string; favoriteTeam: string; pixKey?: string; phone?: string }) => {
     const now = Date.now();
     const newUser: User = {
       id: 'user-' + now,
       name: data.name.trim(),
       email: data.email.trim(),
+      password: data.password ? data.password.trim() : undefined,
       role: 'user',
       avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(data.name.trim())}`,
       favoriteTeam: data.favoriteTeam,
@@ -494,7 +568,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       betNumber,
       betLabel: `Palpite #${betNumber}`,
       predictions: {},
-      status: 'draft',
+      status: 'locked_pending_payment',
       createdAt: new Date().toISOString(),
       isLocked: false
     };
@@ -515,7 +589,8 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteDraftBet = (betId: string) => {
     const targetBet = bets.find(b => b.id === betId);
-    if (!targetBet || (targetBet.isLocked && targetBet.status !== 'draft')) return;
+    // Permite excluir qualquer palpite que ainda não foi confirmado ou enviado comprovante
+    if (!targetBet || targetBet.status === 'confirmed' || targetBet.status === 'receipt_submitted') return;
 
     setBets(prev => prev.filter(b => b.id !== betId));
     setSelectedBetId(null);
@@ -532,7 +607,8 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       targetBet = roundBets.find(b => b.id === selectedBetId);
     }
     if (!targetBet) {
-      targetBet = roundBets[roundBets.length - 1] || roundBets[0];
+      targetBet = roundBets.find(b => !b.isLocked && b.status !== 'confirmed' && b.status !== 'receipt_submitted') ||
+                  roundBets[roundBets.length - 1] || roundBets[0];
     }
     return targetBet ? targetBet.predictions : {};
   };
@@ -564,17 +640,17 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       let targetBetId = betId || selectedBetId;
       let target = userRoundBetsList.find(b => b.id === targetBetId);
 
-      // If target is locked or not found, see if we have an active unlocked draft
-      if (!target || (target.isLocked && target.status !== 'draft')) {
-        const editableDraft = userRoundBetsList.find(b => !b.isLocked && b.status === 'draft');
-        if (editableDraft) {
-          target = editableDraft;
-          targetBetId = editableDraft.id;
+      // Se o alvo estiver travado ou não encontrado, busca um bilhete editável
+      if (!target || target.isLocked) {
+        const editableBet = userRoundBetsList.find(b => !b.isLocked && b.status !== 'confirmed' && b.status !== 'receipt_submitted');
+        if (editableBet) {
+          target = editableBet;
+          targetBetId = editableBet.id;
         }
       }
 
       if (target) {
-        if (target.isLocked && target.status !== 'draft') {
+        if (target.isLocked || target.status === 'confirmed' || target.status === 'receipt_submitted') {
           return prev;
         }
 
@@ -607,7 +683,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           betNumber: betNum,
           betLabel: `Palpite #${betNum}`,
           predictions: { [matchId]: { home, away } },
-          status: 'draft',
+          status: 'locked_pending_payment',
           createdAt: new Date().toISOString(),
           isLocked: false
         };
@@ -637,7 +713,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const roundBets = bets.filter(b => b.userId === currentUserId && b.roundId === roundId);
     const targetBet = (betId ? roundBets.find(b => b.id === betId) : null) ||
                       (selectedBetId ? roundBets.find(b => b.id === selectedBetId) : null) ||
-                      roundBets.find(b => !b.isLocked && b.status === 'draft') ||
+                      roundBets.find(b => !b.isLocked && b.status !== 'confirmed' && b.status !== 'receipt_submitted') ||
                       roundBets[roundBets.length - 1];
 
     if (!targetBet) {
@@ -694,6 +770,21 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const submitPixReceipt = (roundId: number, receiptUrl: string, txId?: string, betId?: string) => {
+    const targetRound = rounds.find(r => r.id === roundId);
+    if (targetRound) {
+      const closedCheck = isRoundBettingClosed(targetRound);
+      if (closedCheck.isClosed) {
+        triggerPush({
+          title: '⛔ Horário Limite Expirado',
+          message: 'O prazo para envio de comprovantes desta rodada já encerrou. Não é mais permitido enviar comprovantes após o horário limite.',
+          type: 'system',
+          roundId,
+          userId: currentUserId
+        });
+        return;
+      }
+    }
+
     const roundBets = bets.filter(b => b.userId === currentUserId && b.roundId === roundId);
     const targetBet = (betId ? roundBets.find(b => b.id === betId) : null) ||
                       (selectedBetId ? roundBets.find(b => b.id === selectedBetId) : null) ||
@@ -767,19 +858,6 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
     );
 
-    // Increase round pot by R$ 10
-    setRounds(prev =>
-      prev.map(r => {
-        if (r.id === betToApprove.roundId) {
-          return {
-            ...r,
-            totalPot: (r.totalPot || 0) + 10.00
-          };
-        }
-        return r;
-      })
-    );
-
     // Push notification to user
     triggerPush({
       title: '✅ Comprovante PIX Aprovado!',
@@ -834,11 +912,19 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       status: m.status || 'scheduled'
     }));
 
+    // By rule, the closing time for the bolão is the kickoff of the 1st match
+    const calculatedDeadline = getFirstMatchDeadline(
+      formattedMatches,
+      newRoundData.season || '2026',
+      newRoundData.deadline
+    );
+
     const newRound: Round = {
       ...newRoundData,
       id: newId,
       number: newRoundData.number || newId,
       totalPot: 0,
+      deadline: calculatedDeadline,
       matches: formattedMatches
     };
 
@@ -919,6 +1005,124 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       message: `O horário limite de palpites para "${target?.title || `Rodada ${roundId}`}" foi atualizado para ${new Date(newDeadline).toLocaleString('pt-BR')}.`,
       type: 'system',
       roundId
+    });
+  };
+
+  const adminSyncRoundsWithOfficialCalendar = () => {
+    setRounds(prevRounds => {
+      let baseRounds = [...prevRounds];
+      // If rounds don't have round 28, use INITIAL_ROUNDS
+      if (!baseRounds.some(r => r.id === 28 || r.number === 28)) {
+        baseRounds = INITIAL_ROUNDS;
+      }
+
+      return baseRounds.map(r => {
+        const roundNum = r.number || r.id;
+        const template = getBrasileirao2026RoundTemplate(roundNum) || BRASILEIRAO_2026_SCHEDULE.find(s => s.number === roundNum);
+        
+        // Handling Round 27: Finished official GE Globo results
+        if (roundNum === 27) {
+          const finishedScores = GOOGLE_BRASILEIRAO_2026_LIVE_DATA.finishedRound27Scores || [];
+          return {
+            ...r,
+            title: '27ª Rodada - Brasileirão 2026 (Finalizada)',
+            status: 'finished',
+            deadline: '2026-09-14T23:59:00Z',
+            matches: r.matches.map((m, idx) => {
+              const tm = template?.matches ? template.matches[idx] : null;
+              const hName = tm?.homeTeam || m.homeTeam;
+              const aName = tm?.awayTeam || m.awayTeam;
+              const scoreData = finishedScores.find(
+                fs => (fs.home.toLowerCase() === hName.toLowerCase() && fs.away.toLowerCase() === aName.toLowerCase()) ||
+                      (hName.toLowerCase().includes(fs.home.toLowerCase()) && aName.toLowerCase().includes(fs.away.toLowerCase()))
+              );
+              return {
+                ...m,
+                date: tm?.date || m.date,
+                stadium: tm?.stadium || m.stadium,
+                homeTeam: hName,
+                homeTeamCode: tm?.homeTeamCode || m.homeTeamCode,
+                homeTeamLogo: tm?.homeTeamLogo || m.homeTeamLogo,
+                awayTeam: aName,
+                awayTeamCode: tm?.awayTeamCode || m.awayTeamCode,
+                awayTeamLogo: tm?.awayTeamLogo || m.awayTeamLogo,
+                homeScore: scoreData ? scoreData.homeScore : (m.homeScore !== null ? m.homeScore : 1),
+                awayScore: scoreData ? scoreData.awayScore : (m.awayScore !== null ? m.awayScore : 1),
+                status: 'finished'
+              };
+            })
+          };
+        }
+
+        // Handling Round 28: Official active round from GE Globo (1st match: 19/09 16:00)
+        if (roundNum === 28) {
+          return {
+            ...r,
+            title: '28ª Rodada - Brasileirão 2026 (Rodada Atual - Aberta)',
+            status: 'open',
+            deadline: '2026-09-19T16:00:00Z',
+            matches: template?.matches ? template.matches.map((tm, idx) => {
+              const existingMatch = r.matches[idx];
+              return {
+                ...existingMatch,
+                id: existingMatch?.id || `r28-m${idx + 1}`,
+                roundId: 28,
+                date: tm.date,
+                stadium: tm.stadium,
+                homeTeam: tm.homeTeam,
+                homeTeamCode: tm.homeTeamCode,
+                homeTeamLogo: tm.homeTeamLogo,
+                awayTeam: tm.awayTeam,
+                awayTeamCode: tm.awayTeamCode,
+                awayTeamLogo: tm.awayTeamLogo,
+                homeScore: null,
+                awayScore: null,
+                status: 'scheduled'
+              };
+            }) : r.matches
+          };
+        }
+
+        // Handling other rounds: closing time is strictly from the 1st match
+        const effectiveMatches = template?.matches || r.matches;
+        const newDeadline = getFirstMatchDeadline(effectiveMatches, r.season || template?.season, r.deadline);
+
+        const updatedMatches = r.matches.map((m, idx) => {
+          if (template?.matches && template.matches[idx]) {
+            const tm = template.matches[idx];
+            if (m.status === 'scheduled' && m.homeScore === null && m.awayScore === null) {
+              return {
+                ...m,
+                date: tm.date,
+                stadium: tm.stadium || m.stadium,
+                homeTeam: tm.homeTeam,
+                homeTeamCode: tm.homeTeamCode,
+                homeTeamLogo: tm.homeTeamLogo,
+                awayTeam: tm.awayTeam,
+                awayTeamCode: tm.awayTeamCode,
+                awayTeamLogo: tm.awayTeamLogo
+              };
+            }
+          }
+          return m;
+        });
+
+        return {
+          ...r,
+          deadline: newDeadline,
+          title: template?.title ? (r.title.includes('Aberta') ? `${template.title} (Aberta)` : template.title) : r.title,
+          matches: updatedMatches
+        };
+      });
+    });
+
+    setSelectedRoundId(28);
+    recalculateRoundScores(27, false);
+
+    triggerPush({
+      title: '🔄 Rodadas Atualizadas (GE Globo)',
+      message: 'Todas as rodadas foram sincronizadas com os dados oficiais do GE Globo (27ª finalizada e 28ª aberta para palpites)!',
+      type: 'system'
     });
   };
 
@@ -1315,6 +1519,7 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         adminUpdateTeam,
         adminEditMatchTeams,
         adminUpdateRoundDeadline,
+        adminSyncRoundsWithOfficialCalendar,
         adminSendNotification,
         adminUpdateUser,
         getGlobalRanking,

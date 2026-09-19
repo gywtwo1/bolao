@@ -18,7 +18,8 @@ export async function fetchLiveSportsScores(matches: Match[]): Promise<SportsApi
   // Simulate network delay for API response
   await new Promise(resolve => setTimeout(resolve, 800));
 
-  const knownScores = GOOGLE_BRASILEIRAO_2026_LIVE_DATA.currentRoundScores;
+  const knownCurrentScores = GOOGLE_BRASILEIRAO_2026_LIVE_DATA.currentRoundScores;
+  const knownFinishedScores = GOOGLE_BRASILEIRAO_2026_LIVE_DATA.finishedRound27Scores || [];
 
   const realisticScores = [
     { h: 2, a: 1, events: ['⚽ 14\' Gol do Mandante', '⚽ 45\' Gol do Visitante', '⚽ 78\' Gol da Vitória (Pênalti)'] },
@@ -34,20 +35,36 @@ export async function fetchLiveSportsScores(matches: Match[]): Promise<SportsApi
   ];
 
   return matches.map((match, idx) => {
-    // Check if match pairs with a known official Google Serie A 2026 score
-    const foundOfficial = knownScores.find(
+    // Check if match pairs with an official finished score from 27th round
+    const foundFinished = knownFinishedScores.find(
       ks => (ks.home.toLowerCase() === match.homeTeam.toLowerCase() && ks.away.toLowerCase() === match.awayTeam.toLowerCase()) ||
             (match.homeTeam.toLowerCase().includes(ks.home.toLowerCase()) && match.awayTeam.toLowerCase().includes(ks.away.toLowerCase()))
     );
 
-    if (foundOfficial) {
+    if (foundFinished) {
       return {
         matchId: match.id,
-        homeScore: foundOfficial.homeScore,
-        awayScore: foundOfficial.awayScore,
-        status: foundOfficial.status === 'live' ? 'live' : 'finished',
-        minute: foundOfficial.status === 'live' ? '75\'' : undefined,
-        events: [`⚽ Gol oficial registrado no Brasileirão 2026: ${foundOfficial.home} ${foundOfficial.homeScore} x ${foundOfficial.awayScore} ${foundOfficial.away}`]
+        homeScore: foundFinished.homeScore,
+        awayScore: foundFinished.awayScore,
+        status: 'finished',
+        events: [`⚽ Placar oficial GE Globo: ${foundFinished.home} ${foundFinished.homeScore} x ${foundFinished.awayScore} ${foundFinished.away}`]
+      };
+    }
+
+    // Check if match pairs with a known official GE Globo Serie A 2026 score
+    const foundCurrent = knownCurrentScores.find(
+      ks => (ks.home.toLowerCase() === match.homeTeam.toLowerCase() && ks.away.toLowerCase() === match.awayTeam.toLowerCase()) ||
+            (match.homeTeam.toLowerCase().includes(ks.home.toLowerCase()) && match.awayTeam.toLowerCase().includes(ks.away.toLowerCase()))
+    );
+
+    if (foundCurrent && foundCurrent.homeScore !== null && foundCurrent.awayScore !== null) {
+      return {
+        matchId: match.id,
+        homeScore: foundCurrent.homeScore,
+        awayScore: foundCurrent.awayScore,
+        status: foundCurrent.status === 'live' ? 'live' : 'finished',
+        minute: foundCurrent.status === 'live' ? '75\'' : undefined,
+        events: [`⚽ Gol oficial registrado no Brasileirão 2026 (GE Globo): ${foundCurrent.home} ${foundCurrent.homeScore} x ${foundCurrent.awayScore} ${foundCurrent.away}`]
       };
     }
 

@@ -94,6 +94,17 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
               O Administrador conta com um painel exclusivo para conferir os comprovantes anexados. Assim que confirmado, o valor entra para o pote da rodada e os pontos passam a valer no ranking oficial.
             </p>
           </div>
+
+          {/* Deadline Mandate */}
+          <div className="bg-slate-950 border border-rose-900/40 rounded-2xl p-4 space-y-2">
+            <h4 className="font-extrabold text-sm text-rose-300 flex items-center gap-1.5">
+              <Lock className="w-4 h-4 text-rose-400" />
+              5. Horário Limite Impreterível
+            </h4>
+            <p className="leading-relaxed">
+              Tanto o registro dos palpites quanto o <strong>envio do comprovante PIX</strong> devem ser realizados <strong>antes do horário limite de fechamento da rodada</strong>. Após esse horário, o sistema bloqueia imediatamente novos comprovantes e palpites sem pagamento não concorrem à premiação.
+            </p>
+          </div>
         </div>
 
         {/* Footer */}

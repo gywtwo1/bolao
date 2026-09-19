@@ -77,6 +77,7 @@ export interface User {
   role: 'admin' | 'user';
   avatar: string;
   favoriteTeam: string;
+  password?: string;
   pixKey?: string;
   phone?: string;
   createdAt: string;

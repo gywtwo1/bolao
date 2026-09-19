@@ -16,7 +16,7 @@ import {
 import { formatCurrency } from '../utils/pix';
 
 export const RankingView: React.FC = () => {
-  const { getGlobalRanking, getRoundRanking, rounds, selectedRoundId, currentUser } = useBolao();
+  const { getGlobalRanking, getRoundRanking, rounds, bets, selectedRoundId, currentUser } = useBolao();
   const [rankingType, setRankingType] = useState<'round' | 'global'>('round'); // Default to Round mode per user requirement
   const [targetRoundId, setTargetRoundId] = useState<number>(selectedRoundId || 1);
 
@@ -25,6 +25,10 @@ export const RankingView: React.FC = () => {
 
   const activeList = rankingType === 'global' ? globalRanking : roundRanking;
   const currentRoundObj = rounds.find(r => r.id === targetRoundId) || rounds[0];
+
+  const currentRoundBets = bets.filter(b => b.roundId === targetRoundId);
+  const roundPrice = currentRoundObj?.price || 10.00;
+  const currentRoundPot = currentRoundObj?.totalPot ?? (currentRoundBets.length * roundPrice);
 
   const top1 = activeList[0];
   const top2 = activeList[1];
@@ -172,16 +176,49 @@ export const RankingView: React.FC = () => {
 
               <div className="bg-slate-950/90 border border-slate-800 px-4 py-3 rounded-2xl text-center shadow-lg">
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                  {isRoundFinished ? 'Prêmio Conquistado' : 'Prêmio Estimado'}
+                  {isRoundFinished ? 'Prêmio Conquistado (1º Lugar)' : 'Prêmio Acumulado (1º Lugar)'}
                 </span>
-                <span className="text-xl sm:text-2xl font-black text-amber-300">
-                  {formatCurrency(currentRoundObj?.totalPot || 60.00)}
+                <span className="text-xl sm:text-2xl font-black text-amber-300 font-mono">
+                  {formatCurrency(currentRoundPot)}
                 </span>
                 <span className="text-[10px] text-emerald-400 block font-bold mt-0.5">
-                  {isRoundFinished ? '🏆 Pago via PIX' : '💰 Bolão da Rodada'}
+                  {currentRoundBets.length} {currentRoundBets.length === 1 ? 'bolão criado' : 'bolões criados'} ({formatCurrency(roundPrice)})
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Round Pot Banner when no player on leaderboard yet */}
+      {rankingType === 'round' && !top1 && currentRoundObj && (
+        <div className="bg-gradient-to-r from-amber-950/40 via-slate-900 to-emerald-950/40 border-2 border-amber-500/40 rounded-3xl p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-center sm:text-left">
+            <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30 shrink-0">
+              <Crown className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white">
+                Prêmio do 1º Lugar da Rodada
+              </h3>
+              <p className="text-xs text-slate-300 mt-0.5">
+                O primeiro colocado desta rodada leva o prêmio total acumulado! Cada novo bolão criado com o valor de {formatCurrency(roundPrice)} acumula diretamente neste pote.
+              </p>
+              <p className="text-[11px] text-emerald-400 font-semibold mt-1">
+                {currentRoundBets.length} {currentRoundBets.length === 1 ? 'bolão criado' : 'bolões criados'} até o momento • Taxa: {formatCurrency(roundPrice)} cada
+              </p>
+            </div>
+          </div>
+          <div className="bg-slate-950/90 border border-amber-400/50 px-5 py-3 rounded-2xl text-center shrink-0">
+            <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block">
+              Prêmio Acumulado
+            </span>
+            <span className="text-2xl sm:text-3xl font-black text-amber-300 font-mono">
+              {formatCurrency(currentRoundPot)}
+            </span>
+            <span className="text-[10px] text-slate-400 block mt-0.5">
+              1º Lugar da {currentRoundObj.title.split('-')[0]}
+            </span>
           </div>
         </div>
       )}
@@ -240,6 +277,11 @@ export const RankingView: React.FC = () => {
                 <span className="text-base sm:text-xl font-black text-amber-300">{top1.totalPoints}</span>
                 <span className="text-xs text-amber-400 font-bold ml-1">pts</span>
               </div>
+              {rankingType === 'round' && (
+                <div className="text-[11px] font-black text-amber-300 mt-1">
+                  💰 {formatCurrency(currentRoundPot)}
+                </div>
+              )}
               <div className="text-[10px] sm:text-xs text-emerald-400 font-bold mt-1.5 flex items-center gap-1 justify-center">
                 <Target className="w-3 h-3" />
                 <span>{top1.exactHits} placares exatos</span>
@@ -413,6 +455,7 @@ export const RankingView: React.FC = () => {
         </p>
         <ul className="list-disc list-inside space-y-1 pl-1 text-[11px] text-slate-400">
           <li><strong>Ganhador da Rodada:</strong> O usuário que somar mais pontos até o final de todos os jogos da rodada é o vencedor e leva a premiação do bolão.</li>
+          <li><strong>Confirmação de PIX Obrigatória:</strong> Palpites sem confirmação do pagamento via PIX não entram na disputa do ranking e não contam para o valor do prêmio.</li>
           <li><strong>Múltiplos Palpites:</strong> Cada participante pode fazer quantos bilhetes quiser por rodada (R$ 10,00 cada). No ranking oficial, é computado o bilhete de maior pontuação do usuário.</li>
           <li><strong>Pontuação:</strong> 3 pontos por Placar Exato cravado e 1 ponto por acerto de Vencedor/Empate.</li>
           <li><strong>Critérios de Desempate:</strong> 1º Maior número de pontos totais, 2º Mais placares exatos, 3º Mais acertos de resultado.</li>

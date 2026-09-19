@@ -22,9 +22,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
   // Register Form
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [regPass, setRegPass] = useState('');
+  const [showRegPass, setShowRegPass] = useState(false);
   const [regTeam, setRegTeam] = useState('Flamengo');
   const [regPix, setRegPix] = useState('');
-  const [regPhone, setRegPhone] = useState('');
+  const [regError, setRegError] = useState('');
 
   if (!isOpen) return null;
 
@@ -44,14 +46,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regName || !regEmail) return;
+    setRegError('');
+
+    if (!regName.trim()) {
+      setRegError('Por favor, informe seu nome completo.');
+      return;
+    }
+    if (!regEmail.trim()) {
+      setRegError('Por favor, informe seu e-mail.');
+      return;
+    }
+    if (!regPass) {
+      setRegError('Por favor, crie uma senha para acessar o bolão.');
+      return;
+    }
+    if (regPass.length < 4) {
+      setRegError('A senha deve conter no mínimo 4 dígitos ou caracteres.');
+      return;
+    }
+
+    const emailClean = regEmail.trim().toLowerCase();
+    const existing = users.find(u => u.email.toLowerCase() === emailClean);
+    if (existing) {
+      setRegError('Já existe uma conta com este e-mail. Acesse a aba "Entrar (Login)".');
+      return;
+    }
 
     register({
       name: regName,
       email: regEmail,
+      password: regPass,
       favoriteTeam: regTeam,
-      pixKey: regPix,
-      phone: regPhone
+      pixKey: regPix
     });
     onClose();
   };
@@ -85,7 +111,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
         {/* Tab switch */}
         <div className="p-2 bg-slate-950 border-b border-slate-800 flex gap-2">
           <button
-            onClick={() => setMode('login')}
+            onClick={() => {
+              setMode('login');
+              setLoginError('');
+              setRegError('');
+            }}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
               mode === 'login'
                 ? 'bg-emerald-500 text-slate-950 shadow'
@@ -95,7 +125,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
             Entrar (Login)
           </button>
           <button
-            onClick={() => setMode('register')}
+            onClick={() => {
+              setMode('register');
+              setLoginError('');
+              setRegError('');
+            }}
             className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
               mode === 'register'
                 ? 'bg-emerald-500 text-slate-950 shadow'
@@ -162,9 +196,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
             </form>
           ) : (
             <form onSubmit={handleRegister} className="space-y-3">
+              {regError && (
+                <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-xs text-rose-300">
+                  {regError}
+                </div>
+              )}
+
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
-                  Nome Completo:
+                  Nome Completo: <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -178,7 +218,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
 
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
-                  E-mail:
+                  E-mail: <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="email"
@@ -188,6 +228,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
                   onChange={e => setRegEmail(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2 rounded-xl focus:border-emerald-400 focus:outline-none"
                 />
+              </div>
+
+              {/* Password Field */}
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">
+                  Criar Senha: <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showRegPass ? 'text' : 'password'}
+                    required
+                    placeholder="Mínimo 4 dígitos"
+                    value={regPass}
+                    onChange={e => setRegPass(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2 pr-9 rounded-xl focus:border-emerald-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegPass(!showRegPass)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    tabIndex={-1}
+                  >
+                    {showRegPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -209,11 +274,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
 
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
-                  Sua Chave PIX (para receber prêmios):
+                  Chave PIX <span className="text-slate-400 font-normal">(p/ recebimento de prêmios)</span>:
                 </label>
                 <input
                   type="text"
-                  placeholder="CPF, E-mail ou Telefone"
+                  placeholder="CPF, e-mail ou telefone PIX"
                   value={regPix}
                   onChange={e => setRegPix(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2 rounded-xl focus:border-emerald-400 focus:outline-none"
@@ -222,7 +287,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAdminLo
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all"
+                className="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all mt-1"
               >
                 Concluir Cadastro & Começar
               </button>

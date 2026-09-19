@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useBolao } from '../context/BolaoContext';
-import { calculateMatchScore } from '../utils/scoring';
+import { calculateMatchScore, isRoundBettingClosed } from '../utils/scoring';
 import { 
   History, 
   CheckCircle2, 
@@ -12,7 +12,8 @@ import {
   Target, 
   ShieldCheck, 
   FileText,
-  DollarSign
+  DollarSign,
+  Lock
 } from 'lucide-react';
 import { formatCurrency } from '../utils/pix';
 
@@ -60,6 +61,8 @@ export const HistoryView: React.FC = () => {
           {userBets.map(bet => {
             const round = rounds.find(r => r.id === bet.roundId);
             const isExpanded = expandedBetId === bet.id;
+            const isRoundClosed = round ? isRoundBettingClosed(round).isClosed : false;
+            const isUnpaid = bet.status === 'locked_pending_payment' || bet.status === 'draft';
 
             return (
               <div
@@ -79,6 +82,8 @@ export const HistoryView: React.FC = () => {
                         <Clock className="w-5 h-5 text-amber-400" />
                       ) : bet.status === 'rejected' ? (
                         <AlertTriangle className="w-5 h-5 text-rose-400" />
+                      ) : isRoundClosed ? (
+                        <Lock className="w-5 h-5 text-slate-500" />
                       ) : (
                         <Clock className="w-5 h-5 text-blue-400" />
                       )}
@@ -99,14 +104,15 @@ export const HistoryView: React.FC = () => {
                               ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                               : bet.status === 'rejected'
                               ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                              : isRoundClosed
+                              ? 'bg-slate-800/80 text-slate-400 border-slate-700'
                               : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
                           }`}
                         >
                           {bet.status === 'confirmed' && 'Confirmado (Válido)'}
                           {bet.status === 'receipt_submitted' && 'Comprovante em Análise'}
                           {bet.status === 'rejected' && 'Comprovante Rejeitado'}
-                          {bet.status === 'locked_pending_payment' && 'Aguardando Pagamento PIX'}
-                          {bet.status === 'draft' && 'Rascunho'}
+                          {isUnpaid && (isRoundClosed ? 'Não Validado (Prazo Expirado)' : 'Aguardando Pagamento PIX')}
                         </span>
                       </div>
                       <p className="text-xs text-slate-400 mt-1">
