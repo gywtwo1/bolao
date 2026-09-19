@@ -23,6 +23,9 @@ interface BolaoContextType {
   pushToast: AppNotification | null;
   isAdmin: boolean;
   onlineUsersCount: number;
+  isSyncingWithServer: boolean;
+  appConfig: { autoApprovePix: boolean; pixKey: string; pixReceiver: string };
+  syncNow: () => Promise<void>;
   // User Actions
   login: (loginOrEmail: string, pass?: string) => { success: boolean; isAdmin?: boolean; message?: string };
   register: (data: { name: string; email: string; password?: string; favoriteTeam: string; pixKey?: string; phone?: string }) => void;
@@ -43,6 +46,7 @@ interface BolaoContextType {
   clearPushToast: () => void;
   // Admin Actions
   adminApproveBet: (betId: string) => void;
+  adminApproveAllBets: (roundId?: number) => void;
   adminRejectBet: (betId: string, reason: string) => void;
   adminCreateRound: (newRound: Omit<Round, 'id' | 'totalPot'>) => void;
   adminDeleteRound: (roundId: number) => void;
@@ -57,6 +61,7 @@ interface BolaoContextType {
   adminSyncRoundsWithOfficialCalendar: () => void;
   adminSendNotification: (data: { userId?: string; title: string; message: string; type?: AppNotification['type'] }) => void;
   adminUpdateUser: (userId: string, data: Partial<User>) => void;
+  adminUpdateConfig: (config: Partial<{ autoApprovePix: boolean; pixKey: string; pixReceiver: string }>) => void;
   // Ranking
   getGlobalRanking: () => RankingEntry[];
   getRoundRanking: (roundId: number) => RankingEntry[];
@@ -187,6 +192,129 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [selectedBetId, setSelectedBetId] = useState<string | null>(null);
   const [pushToast, setPushToast] = useState<AppNotification | null>(null);
+
+  // Server state synchronization across all devices
+  const [isSyncingWithServer, setIsSyncingWithServer] = useState(false);
+  const [appConfig, setAppConfig] = useState<{ autoApprovePix: boolean; pixKey: string; pixReceiver: string }>({
+    autoApprovePix: false,
+    pixKey: 'pix@bolao2026.com.br',
+    pixReceiver: 'Bolão Brasileirão 2026 Oficial'
+  });
+
+  const lastServerModifiedRef = React.useRef<number>(0);
+  const isSyncInProgressRef = React.useRef<boolean>(false);
+  const hasPushedInitialLocalRef = React.useRef<boolean>(false);
+
+  // Sync state between client (mobile/desktop) and backend server
+  const syncWithServer = useCallback(async (pushLocalData = false) => {
+    if (isSyncInProgressRef.current) return;
+    isSyncInProgressRef.current = true;
+    setIsSyncingWithServer(true);
+
+    try {
+      if (pushLocalData || !hasPushedInitialLocalRef.current) {
+        // Send local bets, users, and rounds to merge with server db so mobile bets are never lost
+        const res = await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            users,
+            bets,
+            rounds,
+            teams,
+            notifications
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            hasPushedInitialLocalRef.current = true;
+            lastServerModifiedRef.current = data.lastModified || Date.now();
+            if (Array.isArray(data.users)) setUsers(data.users);
+            if (Array.isArray(data.rounds)) setRounds(data.rounds);
+            if (Array.isArray(data.teams)) setTeams(data.teams);
+            if (Array.isArray(data.bets)) setBets(data.bets);
+            if (Array.isArray(data.notifications)) setNotifications(data.notifications);
+            if (data.config) setAppConfig(data.config);
+          }
+        }
+      } else {
+        // Lightweight polling with since parameter
+        const res = await fetch(`/api/state?since=${lastServerModifiedRef.current}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && !data.notModified) {
+            lastServerModifiedRef.current = data.lastModified || Date.now();
+            if (Array.isArray(data.users)) setUsers(data.users);
+            if (Array.isArray(data.rounds)) setRounds(data.rounds);
+            if (Array.isArray(data.teams)) setTeams(data.teams);
+            if (Array.isArray(data.bets)) setBets(data.bets);
+            if (Array.isArray(data.notifications)) setNotifications(data.notifications);
+            if (data.config) setAppConfig(data.config);
+          }
+        }
+      }
+    } catch (err) {
+      // Graceful fallback for offline mode
+    } finally {
+      isSyncInProgressRef.current = false;
+      setIsSyncingWithServer(false);
+    }
+  }, [users, bets, rounds, teams, notifications]);
+
+  // Periodic polling & real-time focus sync
+  useEffect(() => {
+    // Initial sync
+    syncWithServer(true);
+
+    // Poll server every 3.5 seconds so mobile users see other users' bets in real-time
+    const pollInterval = setInterval(() => {
+      syncWithServer(false);
+    }, 3500);
+
+    const onWakeOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        syncWithServer(false);
+      }
+    };
+
+    window.addEventListener('focus', onWakeOrFocus);
+    window.addEventListener('online', onWakeOrFocus);
+    document.addEventListener('visibilitychange', onWakeOrFocus);
+
+    return () => {
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', onWakeOrFocus);
+      window.removeEventListener('online', onWakeOrFocus);
+      document.removeEventListener('visibilitychange', onWakeOrFocus);
+    };
+  }, [syncWithServer]);
+
+  // Helper to instantly send a single bet to server
+  const sendBetToServer = async (bet: UserBet) => {
+    try {
+      const res = await fetch('/api/bets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bet)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.bet) {
+          lastServerModifiedRef.current = data.lastModified || Date.now();
+          // Update bet if server auto-approved or modified it
+          setBets(prev => prev.map(b => b.id === data.bet.id ? data.bet : b));
+        }
+      }
+    } catch (err) {
+      console.warn('Network issue saving bet to server:', err);
+    }
+  };
+
+  const syncNow = async () => {
+    await syncWithServer(true);
+  };
 
   // Sync to localStorage
   useEffect(() => {
@@ -354,10 +482,15 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       .map(r => {
         // Apenas bilhetes com PIX confirmado contam para o prêmio acumulado
         const roundConfirmedBets = bets.filter(b => b.roundId === r.id && b.status === 'confirmed');
+        const roundPendingBets = bets.filter(b => b.roundId === r.id && b.status === 'receipt_submitted');
         const betPrice = r.price || 10.00;
         return {
           ...r,
-          totalPot: roundConfirmedBets.length * betPrice
+          totalPot: roundConfirmedBets.length * betPrice,
+          pendingPot: roundPendingBets.length * betPrice,
+          confirmedBetsCount: roundConfirmedBets.length,
+          pendingBetsCount: roundPendingBets.length,
+          totalParticipantsCount: roundConfirmedBets.length + roundPendingBets.length
         };
       });
   }, [rounds, bets]);
@@ -576,6 +709,9 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setBets(prev => [...prev, newBet]);
     setSelectedBetId(newBetId);
 
+    // Send immediately to backend server
+    sendBetToServer(newBet);
+
     triggerPush({
       title: `🎫 Novo Bilhete Criado: Palpite #${betNumber}`,
       message: `Você iniciou o Palpite #${betNumber} para a Rodada ${roundId}. Preencha os 10 jogos para travar e pagar a taxa via PIX!`,
@@ -740,18 +876,15 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
 
     // All 10 matches predicted! Lock this specific bet and change status to locked_pending_payment
-    setBets(prev => {
-      return prev.map(b => {
-        if (b.id === targetBet.id) {
-          return {
-            ...b,
-            isLocked: true,
-            status: 'locked_pending_payment'
-          };
-        }
-        return b;
-      });
-    });
+    const lockedBet: UserBet = {
+      ...targetBet,
+      predictions,
+      isLocked: true,
+      status: 'locked_pending_payment'
+    };
+
+    setBets(prev => prev.map(b => b.id === targetBet.id ? lockedBet : b));
+    sendBetToServer(lockedBet);
 
     try {
       confetti({
@@ -793,20 +926,16 @@ export const BolaoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (!targetBet) return;
 
-    setBets(prev => {
-      return prev.map(b => {
-        if (b.id === targetBet.id) {
-          return {
-            ...b,
-            status: 'receipt_submitted',
-            receiptUrl: receiptUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&auto=format&fit=crop&q=80',
-            receiptUploadedAt: new Date().toISOString(),
-            adminNotes: undefined
-          };
-        }
-        return b;
-      });
-    });
+    const updatedBet: UserBet = {
+      ...targetBet,
+      status: 'receipt_submitted',
+      receiptUrl: receiptUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&auto=format&fit=crop&q=80',
+      receiptUploadedAt: new Date().toISOString(),
+      adminNotes: undefined
+    };
+
+    setBets(prev => prev.map(b => b.id === targetBet.id ? updatedBet : b));
+    sendBetToServer(updatedBet);
 
     triggerPush({
       title: `📤 Comprovante PIX do ${targetBet.betLabel || 'Palpite'} Enviado!`,

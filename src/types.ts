@@ -38,6 +38,10 @@ export interface Round {
   matches: Match[];
   totalPot: number;
   isArchived?: boolean;
+  pendingPot?: number;
+  confirmedBetsCount?: number;
+  pendingBetsCount?: number;
+  totalParticipantsCount?: number;
 }
 
 export type BetStatus = 'draft' | 'locked_pending_payment' | 'receipt_submitted' | 'confirmed' | 'rejected';
@@ -116,4 +120,5 @@ export interface RankingEntry {
   lastRoundPoints?: number;
   bestBetLabel?: string;
   isRoundWinner?: boolean;
+  betStatus?: BetStatus;
 }
